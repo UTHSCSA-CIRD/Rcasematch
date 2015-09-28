@@ -142,7 +142,45 @@ findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,st
   # TODO: check for val argument, check for vectorness
 }
 
-
+lmfindrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,strict=F,...){
+  #xx is a dataframe containing the set of records to be considered "one patient" or one set of data to analyse
+  #fstart is a criterion that should calculate a boolean value when applied to the dataframe
+     # e.g. quote("fractures!=''&bmi<20") to look for the column fractures being not blank and bmi less than 20
+  #fend -using the index found in fstart, utilize this new criterion to find the last valid visit
+     # e.g. quote("bmi >20") to find the NEXT visit where the bmi >20
+  
+  #nthstart = the index of "true" values you wish to use- e.g. the second occurance of a fracture, default first occurance
+  
+  # strict: T/F, if TRUE returns NULL when all criteria cannot be satisfied. Otherwise return as much of the range as does satisfy criteria; if an nthstart value cannot be found, however, a NULL is still returned
+  
+  
+  ### TODO: 
+  ###Lead and trail -- vector or integer..? 
+  ### nthstart,nthend - start looking at nthstart and nthend? 
+  
+  ##### lead,trail: integers or vectors indicating sequences of entries preceeding the start and following the end, respectively, relative to start and end respectively, can be negative or 0
+  ##### nthstart,nthend: integers indicating which starting positive value of fstart is the first reference point; the ending reference point is nth relative to whatever turns out to be the starting one
+  # val: whether to return values (if possible, not yet implemented)
+  
+  start = which(eval(fstart,xx))[nthstart];
+  if(is.na(ptstart)) return(NULL);
+  
+  #############################
+  # TODO: tests on argument values
+  lead<-sort(lead); trail<-sort(trail);
+  ptstart <- which(stout<-fstart(xx,...));
+  # TODO: (more thorough) tests on ptstart
+  if(is.na(ptstart)) return(NULL);
+  
+  ptend <- which((stend<-fend(xx,ptstart,...))[ptstart:length(stout)])[nthend]+ptstart-1;
+  # TODO: (more thorough) tests on ptend
+  if(is.na(ptend)) if(strict) return(NULL) else ptend<-length(stout);
+  leadidx <- lead+ptstart; trailidx <- trail+ptend;
+  out <- sort(unique(c(leadidx,(max(leadidx)+1):(min(trailidx)-1),trailidx)));
+  if(any(is.na(out)|out<1)) if(strict) return(NULL);
+  return(na.omit(out[out>0]));
+  # TODO: check for val argument, check for vectorness
+}
 
 #casebin: dataframe, with cases binned by age
 #ctrlbin: dataframe in the list returned by matcher()$control_matched, which is binned and trimmed to the same size as the binned cases
