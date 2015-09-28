@@ -1,0 +1,13 @@
+Package: Rcasematch
+Type: Package
+Title: Case-control matching in EHR data
+Version: 0.0.1
+Date: 2015-09-28
+URL: https://github.com/UTHSCSA-CIRD/
+Depends: R (>= 3.0.0)
+Author: CIRD Development Team
+Maintainer: Alex F. Bokov <bokov@uthscsa.edu>
+Description: Functions useful for finding a control group for a cohort of interest, particularly when analyzing retrospective EHR data 
+License: LGPL
+LazyLoad: yes
+
