@@ -260,7 +260,7 @@ lmfindrange <- function(xx,fstart,fend = NULL,lead=0,trail=0,nthstart=1,nthend=1
     traili = sort(trail);
     tmp = rbind(tmp, xx[traili+end,]);
   }
-  return (tmp);
+  return (tmp);#random comment changes 
   ####lead<-sort(lead); trail<-sort(trail);
   
   # TODO: (more thorough) tests on ptend
