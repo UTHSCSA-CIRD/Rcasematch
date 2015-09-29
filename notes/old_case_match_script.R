@@ -119,7 +119,7 @@ prepost <- function(xx,ftest,which=1,nth=1,val=F,...){
 # 7. (maybe) be a framework for a collection of predefined fstart and fend functions targeted at common use cases (like the above)
 
 
-findrange <- function(xx,fstart,fend = NULL,lead=0,trail=0,nthstart=1,nthend=1,val=F,strict=F,...){
+findrange <- function(xx,fstart,fend = NULL,lead=0,trail=0,nthstart=1,nthend=1,val=T,strict=F,...){
   #xx is a dataframe containing the set of records to be considered "one patient" or one set of data to analyse
   #fstart is a criterion that should calculate a boolean value when applied to the dataframe
   # e.g. quote("fractures!=''&bmi<20") to look for the column fractures being not blank and bmi less than 20
@@ -129,6 +129,23 @@ findrange <- function(xx,fstart,fend = NULL,lead=0,trail=0,nthstart=1,nthend=1,v
   #nthstart = the index of "true" values you wish to use- e.g. the second occurance of a fracture, default first occurance
   #strict: T/F, if TRUE returns NULL when all criteria cannot be satisfied. Otherwise return as much of the range as does satisfy criteria; if an nthstart value cannot be found, however, a NULL is still returned
   #val: When true val returns a subset of xx, when false val returns a vector list. (affected by strict)
+  tstart = substitute(fstart);
+  tend = substitute(fend);
+  if(class(tstart) == "call"){fstart = tstart;}
+  if(class(tstart) == "name"){
+    fstart = eval(tstart)
+    if(class(fstart)!="call"){
+      fstart = parse(text=fstart)[[1]]; 
+    }
+  }
+
+  if(class(tend) == "call"){fend = tend;}
+  if(class(tend) == "name"){
+    fend = eval(tend);
+    if(class(fend)!="call"){
+      fend = parse(text=fend)[[1]]; 
+    }
+  }
   
   if(is.null(fend)){fend=fstart}
   
@@ -190,147 +207,8 @@ findrange <- function(xx,fstart,fend = NULL,lead=0,trail=0,nthstart=1,nthend=1,v
   return (tmp);
 }
 
-findrangeNQ <- function(xx,instart,inend = NULL,lead=0,trail=0,nthstart=1,nthend=1,val=T,strict=F,...){
-  #xx is a dataframe containing the set of records to be considered "one patient" or one set of data to analyse
-  #instart is a criterion that should calculate a boolean value when applied to the dataframe
-     # e.g. fractures!=''&bmi<20 to look for the column fractures being not blank and bmi less than 20
-  #inend -using the index found in fstart, utilize this new criterion to find the last valid visit
-     # e.g. bmi >20 to find the NEXT visit where the bmi >20
-     #if left blank, inend will equal instart
-  #nthstart = the index of "true" values you wish to use- e.g. the second occurance of a fracture, default first occurance
-  # strict: T/F, if TRUE returns NULL when all criteria cannot be satisfied. Otherwise return as much of the range as does satisfy criteria; if an nthstart value cannot be found, however, a NULL is still returned
-  #val: When true val returns a subset of xx, when false val returns a vector list. (affected by strict)
-  
-  fstart = substitute(instart)
-  if(is.null(inend)){fend=fstart}else{fend=substitute(inend)}
-  
-  #Find all values that evaluate to TRUE with fstart, take the nthstart one and assign the index to start
-  start = which(eval(fstart,xx))[nthstart];
-  
-  #if no index, we don't have an nthstart that evaluates to true
-  if(is.na(start)) return(NULL);
-  
-  #Run an eval on a subset of xx that starts from index start
-  #Take the nthend of the evals (this index is offset by start -1)
-  end = which(eval(fend, xx[(start):(nrow(xx)), ]))[nthend]
-  
-  #if we don't find the fend, we check to see if it's strict. If strict return null, else return all after start
-  if(is.na(end)){
-    if(strict){return (NULL);}
-    else { 
-      end = nrow(xx);
-    } #assigning the last value to end and proceeding to adding beginning offsets
-    #ending offsets are out of bounds
-  }else{
-    # if end is not null, we will add the start offset
-    end = end + start - 1;
-  }
-  if(val){
-    tmp = xx[start:end, ];
-  }else{
-    tmp = c(start:end);
-  }
-  
-  if(lead[1] != 0){
-    leadi = sort(lead)+start;
-    if(leadi[1] < 1 && strict) return(NULL);
-    leadi = leadi[leadi > 0];
-    #Check if we can account for all requested indexes, if not return null if strict
-    if(length(leadi) != 0){
-      if(val){
-        tmp = rbind(xx[leadi, ], tmp);
-      }else{
-        tmp = c(leadi, tmp);
-      }
-      
-    }else{
-      if(strict) return(NULL);
-    }
-  }
-  if(trail[1] != 0){
-    traili = sort(trail) + end;
-    if(traili[length(traili)] > nrow(xx) && strict) return(NULL);
-    traili = traili[traili<=nrow(xx)];
-    if(length(traili) != 0){
-      if(val){
-        tmp = rbind(tmp, xx[traili,]);
-      }else{
-        tmp = c(tmp, traili);
-      }
-    }
-  }
-  return (tmp);
-}
-findrange <- function(xx,fstart,fend = NULL,lead=0,trail=0,nthstart=1,nthend=1,val=F,strict=F,...){
-  #xx is a dataframe containing the set of records to be considered "one patient" or one set of data to analyse
-  #fstart is a criterion that should calculate a boolean value when applied to the dataframe
-  # e.g. quote("fractures!=''&bmi<20") to look for the column fractures being not blank and bmi less than 20
-  #fend -using the index found in fstart, utilize this new criterion to find the last valid visit
-  # e.g. quote("bmi >20") to find the NEXT visit where the bmi >20
-  #if left blank, inend will equal instart
-  #nthstart = the index of "true" values you wish to use- e.g. the second occurance of a fracture, default first occurance
-  #strict: T/F, if TRUE returns NULL when all criteria cannot be satisfied. Otherwise return as much of the range as does satisfy criteria; if an nthstart value cannot be found, however, a NULL is still returned
-  #val: When true val returns a subset of xx, when false val returns a vector list. (affected by strict)
-  
-  if(is.null(fend)){fend=fstart}
-  
-  #Find all values that evaluate to TRUE with fstart, take the nthstart one and assign the index to start
-  start = which(eval(fstart,xx))[nthstart];
-  
-  #if no index, we don't have an nthstart that evaluates to true
-  if(is.na(start)) return(NULL);
-  
-  #Run an eval on a subset of xx that starts from index start
-  #Take the nthend of the evals (this index is offset by start -1)
-  end = which(eval(fend, xx[(start):(nrow(xx)), ]))[nthend]
-  
-  #if we don't find the fend, we check to see if it's strict. If strict return null, else return all after start
-  if(is.na(end)){
-    if(strict){return (NULL);}
-    else { 
-      end = nrow(xx);
-    } #assigning the last value to end and proceeding to adding beginning offsets
-    #ending offsets are out of bounds
-  }else{
-    # if end is not null, we will add the start offset
-    end = end + start - 1;
-  }
-  if(val){
-    tmp = xx[start:end, ];
-  }else{
-    tmp = c(start:end);
-  }
-  
-  if(lead[1] != 0){
-    leadi = sort(lead)+start;
-    if(leadi[1] < 1 && strict) return(NULL);
-    leadi = leadi[leadi > 0];
-    #Check if we can account for all requested indexes, if not return null if strict
-    if(length(leadi) != 0){
-      if(val){
-        tmp = rbind(xx[leadi, ], tmp);
-      }else{
-        tmp = c(leadi, tmp);
-      }
-      
-    }else{
-      if(strict) return(NULL);
-    }
-  }
-  if(trail[1] != 0){
-    traili = sort(trail) + end;
-    if(traili[length(traili)] > nrow(xx) && strict) return(NULL);
-    traili = traili[traili<=nrow(xx)];
-    if(length(traili) != 0){
-      if(val){
-        tmp = rbind(tmp, xx[traili,]);
-      }else{
-        tmp = c(tmp, traili);
-      }
-    }
-  }
-  return (tmp);
-}
+
+
 #casebin: dataframe, with cases binned by age
 #ctrlbin: dataframe in the list returned by matcher()$control_matched, which is binned and trimmed to the same size as the binned cases
 #dx_col is a vector of diagnosis columns used to define cases c()
