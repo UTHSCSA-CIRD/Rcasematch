@@ -118,8 +118,28 @@ prepost <- function(xx,ftest,which=1,nth=1,val=F,...){
 # 6. look for an nth event before starting or ending a sequence of selected entries
 # 7. (maybe) be a framework for a collection of predefined fstart and fend functions targeted at common use cases (like the above)
 
-
-findrange <- function(xx,fstart,fend = NULL,lead=0,trail=0,nthstart=1,nthend=1,val=T,strict=F,...){
+rangeAfter <- function(daysAfter, daysColumnName, greater = T, requireVisit = F, clip = F, xx, fstart, fend = NULL, val = T,... ){
+  #Range After utilizes the "findrange" function and then allows the user to search for visits X days after
+    #e.g. search for all visits within 60 days of the last bone fracture visit. 
+  #daysAfter - a numeric/integer value that indicates the number of days after the last event in the returned dataframe has occured.
+  #daysColumnName - character array containing the name of the column which contains the comparison value e.g. daysColumnName = "AgeAtVisit"
+    #future support may be provided for date fields.
+  #greater - if T rangeAfter has expected functionality by adding daysAfter to the value in daysColumName and searching for values greater (after) that number
+    # greater = F allows you to search for less than values. e.g. BMI < -1 (all visits until BMI is < originalBMI-1)
+  #requireVisit - If True rangeAfter will return NULL if there are no visits within daysAfter days of last event.
+    # If F- rangeAfter will return regardless of whether or not there are visits within range after. 
+    #Note: if the initial search for a visit from findrange returns NULL, rangeAfter will return NULL.
+  #clip - if T the final element in the subset returned by findrange will be clipped (if it matches fend && fend != NULL)
+    #if F no action is taken. 
+    # e.g. if you are searching for follow up visits after an event where there may be multiple consecutive visits with that event.
+      #you could make fstart = event and fend = noEvent. findrange would return the visit with no event in the last index. clip will trim that last index if it matches fend
+    #Note: if clip is T and requireVisit is F, strict should be F unless there is a reason why records would not be valid if there is no non event visits (e.g.: survival is questioned)
+  #val - used in the same was as findrange if T it returns a subset of the initial dataframe. If F it returns the verticies
+  #xx, fstart and fend are required parameters of findrange. Additional parameters may be passed in the ... Please reference findrange for more information on these parameters.
+  #Note: you can use rangeAfter to find changing numerical values, e.g. daysAfter = 1 daysColumnName = "BMI" all visits until BMI is > (eventBMI +1)
+  #TODO: The entire function.
+}
+findrange <- function(xx,fstart,fend = NULL,lead=0,trail=0,nthstart=1,nthend=1,val=T,strict=F){
   #xx is a dataframe containing the set of records to be considered "one patient" or one set of data to analyse
   #fstart is a criterion that should calculate a boolean value when applied to the dataframe
   # e.g. quote("fractures!=''&bmi<20") to look for the column fractures being not blank and bmi less than 20
@@ -134,17 +154,17 @@ findrange <- function(xx,fstart,fend = NULL,lead=0,trail=0,nthstart=1,nthend=1,v
   if(class(tstart) == "call"){fstart = tstart;}
   if(class(tstart) == "name"){
     fstart = eval(tstart)
-    if(class(fstart)!="call"){
-      fstart = parse(text=fstart)[[1]]; 
-    }
+  }
+  if(class(fstart)=="character"){
+    fstart = parse(text=fstart)[[1]]; 
   }
 
   if(class(tend) == "call"){fend = tend;}
   if(class(tend) == "name"){
     fend = eval(tend);
-    if(class(fend)!="call"){
-      fend = parse(text=fend)[[1]]; 
-    }
+  }
+  if(class(fend)=="character"){
+    fend = parse(text=fend)[[1]]; 
   }
   
   if(is.null(fend)){fend=fstart}
