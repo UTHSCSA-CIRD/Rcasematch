@@ -118,14 +118,14 @@ prepost <- function(xx,ftest,which=1,nth=1,val=F,...){
 # 6. look for an nth event before starting or ending a sequence of selected entries
 # 7. (maybe) be a framework for a collection of predefined fstart and fend functions targeted at common use cases (like the above)
 
-rangeAfter <- function(daysAfter, daysColumnName, greater = T, requireVisit = F, clip = F, xx, fstart, fend = NULL, val = T,... ){
+rangeAfter <- function(xx, fstart, change, rangeColumn, compare = '<=', requireVisit = F, clip = F, continuous = T, fend = NULL, val = T,... ){
   #Range After utilizes the "findrange" function and then allows the user to search for visits X days after
     #e.g. search for all visits within 60 days of the last bone fracture visit. 
-  #daysAfter - a numeric/integer value that indicates the number of days after the last event in the returned dataframe has occured.
-  #daysColumnName - character array containing the name of the column which contains the comparison value e.g. daysColumnName = "AgeAtVisit"
-    #future support may be provided for date fields.
-  #greater - if T rangeAfter has expected functionality by adding daysAfter to the value in daysColumName and searching for values greater (after) that number
-    # greater = F allows you to search for less than values. e.g. BMI < -1 (all visits until BMI is < originalBMI-1)
+  #change - a numeric/integer value that indicates the number of days after the last event in the returned dataframe has occured.
+  #rangeColumn - character array containing the name of the column which contains the comparison value e.g. daysColumnName = "AgeAtVisit"
+    #support for date and numerical fields only. Returns NULL if attempting to use a non numerical or a factor that cannot be converted into date. 
+  #compare - looking for all values after fend (original 'compare' original + change) 
+    #e.g. looking for visits within 60 days of event ending- clip = T, change = default.
   #requireVisit - If True rangeAfter will return NULL if there are no visits within daysAfter days of last event.
     # If F- rangeAfter will return regardless of whether or not there are visits within range after. 
     #Note: if the initial search for a visit from findrange returns NULL, rangeAfter will return NULL.
@@ -134,10 +134,87 @@ rangeAfter <- function(daysAfter, daysColumnName, greater = T, requireVisit = F,
     # e.g. if you are searching for follow up visits after an event where there may be multiple consecutive visits with that event.
       #you could make fstart = event and fend = noEvent. findrange would return the visit with no event in the last index. clip will trim that last index if it matches fend
     #Note: if clip is T and requireVisit is F, strict should be F unless there is a reason why records would not be valid if there is no non event visits (e.g.: survival is questioned)
+  #continuous - T - show all visits from fend till compare no longer met. F = show only visits where compare  has been met
   #val - used in the same was as findrange if T it returns a subset of the initial dataframe. If F it returns the verticies
   #xx, fstart and fend are required parameters of findrange. Additional parameters may be passed in the ... Please reference findrange for more information on these parameters.
   #Note: you can use rangeAfter to find changing numerical values, e.g. daysAfter = 1 daysColumnName = "BMI" all visits until BMI is > (eventBMI +1)
-  #TODO: The entire function.
+
+  #Checking Compare (we return if compare is invalid)
+   if(class(xx[ ,rangeColumn]) == "numeric"){
+    if(!(compare == "<" | compare == "<=" | compare == "==" | compare == ">=" | compare == ">")){
+      print("Invalid compare. Compare must be =, <, <=, ==, >=, >, or !=")
+      return(NULL)
+    }
+  }else{
+    tryCatch({
+      xx[ ,rangeColumn] <- as.Date(xx[,rangeColumn])
+                                   }, error = function(e) 
+                                     {print("rangeColumn non numeric, non date");return(NULL);})
+    
+    if(!(compare == "<" | compare == "<=" | compare == "==" | compare == ">=" | compare == ">" | compare == "!=" )){
+      print("Invalid compare. Compare must be =, <, <=, ==, >=, >, or !=")
+      return(NULL)
+    }
+  }
+  sub1 = findrange(xx, fstart, fend, trail=0, val = F)
+  if(is.null(sub1))return(NULL)
+  
+  #if clip and fend eval True on the last element, clip the last element
+  if(clip){
+    if(eval(fend, xx[sub1[length(sub1)],])) sub1 = sub1[1:(length(sub1)-1)]
+  }
+  #Check if we are on the last visit for patient X. 
+  if(sub1[length(sub1)] == nrow(xx)){
+    sub2 = NULL
+  }else{
+    sub2 = xx[(sub1[length(sub1)]+1):nrow(xx),]
+    original = xx[sub1[length(sub1)], rangeColumn]
+    if(class(original) == "numeric"){
+      newStart = paste(rangeColumn, compare,  (original + change))
+      newEnd = paste("!(", rangeColumn, compare, (original + change), ")")
+      
+    }else{
+      if(class(original) == "Date"){
+        newStart = paste0(rangeColumn, compare,  "as.Date('", (original + change), "')")
+        newEnd = paste0("!(", rangeColumn, compare, "as.Date('",(original + change), "'))")
+      }else{
+        #error, invalid test type
+        return(NULL)
+      }
+    }
+    sub2 = findrange(sub2, newStart, newEnd, 0, 0, 1, 1, F, F)
+    
+    #clip the newEnd value if exists. 
+    if(!is.null(sub2)){
+      sub2 = sub2 + sub1[length(sub1)]
+      if(eval(parse(text=newEnd)[[1]], xx[sub2[length(sub2)],])){
+        sub2 = sub2[1:length(sub2)-1]
+      }
+    }
+  }
+  ## TODO - check required.
+  if(is.null(sub2)){
+    if(requireVisit){
+      return(NULL)
+    }else{
+      if(val){
+        return (xx[sub1,])
+      }else{
+        return(sub1)
+      }
+    }
+  }
+  indicies = NULL
+  if(continuous){
+    indicies = c(sub1[1] : sub2[length(sub2)])
+  }else{
+    indicies = c(sub1, sub2)
+  }
+  if(val){
+    return (xx[indicies,])
+  }else{
+    return(indicies)
+  }
 }
 findrange <- function(xx,fstart,fend = NULL,lead=0,trail=0,nthstart=1,nthend=1,val=T,strict=F){
   #xx is a dataframe containing the set of records to be considered "one patient" or one set of data to analyse
@@ -149,20 +226,11 @@ findrange <- function(xx,fstart,fend = NULL,lead=0,trail=0,nthstart=1,nthend=1,v
   #nthstart = the index of "true" values you wish to use- e.g. the second occurance of a fracture, default first occurance
   #strict: T/F, if TRUE returns NULL when all criteria cannot be satisfied. Otherwise return as much of the range as does satisfy criteria; if an nthstart value cannot be found, however, a NULL is still returned
   #val: When true val returns a subset of xx, when false val returns a vector list. (affected by strict)
-  tstart = substitute(fstart);
-  tend = substitute(fend);
-  if(class(tstart) == "call"){fstart = tstart;}
-  if(class(tstart) == "name"){
-    fstart = eval(tstart)
-  }
-  if(class(fstart)=="character"){
+
+    if(class(fstart)=="character"){
     fstart = parse(text=fstart)[[1]]; 
   }
 
-  if(class(tend) == "call"){fend = tend;}
-  if(class(tend) == "name"){
-    fend = eval(tend);
-  }
   if(class(fend)=="character"){
     fend = parse(text=fend)[[1]]; 
   }
