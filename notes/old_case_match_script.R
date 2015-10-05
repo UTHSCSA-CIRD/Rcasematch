@@ -119,7 +119,11 @@ prepost <- function(xx,ftest,which=1,nth=1,val=F,...){
 # 7. (maybe) be a framework for a collection of predefined fstart and fend functions targeted at common use cases (like the above)
 
 rangeAfter <- function(xx, fstart, change, rangeColumn, compare = '<=', requireVisit = F, clip = F, continuous = T, fend = NULL, val = T,... ){
-  #Range After utilizes the "findrange" function and then allows the user to search for visits X days after
+
+      # TODO (Add in a second parameter. E.G. BMI change within 60 days of fend.)
+
+  
+      #Range After utilizes the "findrange" function and then allows the user to search for visits X days after
     #e.g. search for all visits within 60 days of the last bone fracture visit. 
   #change - a numeric/integer value that indicates the number of days after the last event in the returned dataframe has occured.
   #rangeColumn - character array containing the name of the column which contains the comparison value e.g. daysColumnName = "AgeAtVisit"
@@ -187,12 +191,15 @@ rangeAfter <- function(xx, fstart, change, rangeColumn, compare = '<=', requireV
     #clip the newEnd value if exists. 
     if(!is.null(sub2)){
       sub2 = sub2 + sub1[length(sub1)]
-      if(eval(parse(text=newEnd)[[1]], xx[sub2[length(sub2)],])){
-        sub2 = sub2[1:length(sub2)-1]
+      e = eval(parse(text=newEnd)[[1]], xx[sub2[length(sub2)],])
+      #e handles the issues that arise from incomplete data sets. 
+      if(!is.na(e)){
+        if(e){
+          sub2 = sub2[1:length(sub2)-1]
+        }
       }
     }
   }
-  ## TODO - check required.
   if(is.null(sub2)){
     if(requireVisit){
       return(NULL)
@@ -216,21 +223,32 @@ rangeAfter <- function(xx, fstart, change, rangeColumn, compare = '<=', requireV
     return(indicies)
   }
 }
+
 findrange <- function(xx,fstart,fend = NULL,lead=0,trail=0,nthstart=1,nthend=1,val=T,strict=F){
   #xx is a dataframe containing the set of records to be considered "one patient" or one set of data to analyse
   #fstart is a criterion that should calculate a boolean value when applied to the dataframe
-  # e.g. quote("fractures!=''&bmi<20") to look for the column fractures being not blank and bmi less than 20
+  # accepts string or expression.
   #fend -using the index found in fstart, utilize this new criterion to find the last valid visit
-  # e.g. quote("bmi >20") to find the NEXT visit where the bmi >20
-  #if left blank, inend will equal instart
+  # accepts string or expression.
+  #if left blank, end will equal start
   #nthstart = the index of "true" values you wish to use- e.g. the second occurance of a fracture, default first occurance
   #strict: T/F, if TRUE returns NULL when all criteria cannot be satisfied. Otherwise return as much of the range as does satisfy criteria; if an nthstart value cannot be found, however, a NULL is still returned
   #val: When true val returns a subset of xx, when false val returns a vector list. (affected by strict)
 
-    if(class(fstart)=="character"){
+  tstart = substitute(fstart);
+  tend = substitute(fend);
+  if(class(tstart) == "call"){fstart = tstart;}
+  if(class(tstart) == "name"){
+    fstart = eval(tstart)
+  }
+  if(class(fstart)=="character"){
     fstart = parse(text=fstart)[[1]]; 
   }
-
+  
+  if(class(tend) == "call"){fend = tend;}
+  if(class(tend) == "name"){
+    fend = eval(tend);
+  }
   if(class(fend)=="character"){
     fend = parse(text=fend)[[1]]; 
   }
