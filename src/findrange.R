@@ -17,6 +17,35 @@ findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,st
   # val: whether to return values (if possible, not yet implemented)
   # strict: T/F, if TRUE returns NULL when all criteria cannot be satisfied. Otherwise return as much of the range as does satisfy criteria; if an nthstart value cannot be found, however, a NULL is still returned
   # TODO: tests on argument values
+  
+  # grab the fstart and fend arguments before they can get evaluated
+  tstart <- substitute(fstart);
+  
+  # Previously we tested for fend being NULL, but the default state of fend
+  # is not null-- it's technically a mandatory argument and when it's not specified
+  # it's missing. Here we catch that behavior and set it to whatever fstart was set to
+  # Whether this is a good idea or not needs further thought. Perhaps a better default
+  # value is one that immediately ceases accumulating output so that by default the first
+  # matching result for fstart is returned and no further ones.
+  if(missing(fend)) tend <- tstart else tend <- substitute(fend);  
+  
+  # if the start expression is a call, leave it alone, that's what we want
+  if(is.call(tstart)){fstart <- tstart;}
+  # if it's a name, evaluate it
+  else if(is.name(tstart)){ fstart <- eval(tstart);}
+  # if it evaluates to a character 
+  # (or if it was all along and thus did not meet the above checks) 
+  # try parsing it to turn it into a call
+  if(is.character(fstart)){ fstart = parse(text=fstart)[[1]];}
+  # ...it might still not be a valid call at that point, but hey, we tried
+  # TODO: put some final test here that will give the user some actionable error message if
+  # despite our best efforts they still managed to pass something that doesn't evaluate as
+  # an R call
+  
+  # repeat the above for fend
+  if(is.call(tend)){fend <- tend;} else if(is.name(tend)){fend <- eval(tend);}
+  if(is.character(fend)){fend = parse(text=fend)[[1]];}
+  
   lead<-sort(lead); trail<-sort(trail);
   ptstart <- which(stout<-fstart(xx,...))[nthstart];
   # TODO: (more thorough) tests on ptstart
