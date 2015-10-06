@@ -69,80 +69,83 @@ datatrans <- alist(
 
 # nthby() is no longer used
 
+# BELOW OBSOLETED BY src/byunby.R
 # looks like we'll be using the by()/do.call(rbind,...)
 # pattern a lot, so let's create a convenience function for it
-byunby <- function(data,indices,FUN,...){
-  # all arguments passed to by() and mean the same thing as 
-  # by()'s corresponding arguments
-  dsplit <- by(data,indices,FUN,...,simplify=F);
-  do.call(rbind,dsplit);
-}
+#byunby <- function(data,indices,FUN,...){
+#  # all arguments passed to by() and mean the same thing as 
+#  # by()'s corresponding arguments
+#  dsplit <- by(data,indices,FUN,...,simplify=F);
+#  do.call(rbind,dsplit);
+#}
 
-matcher <- function(cases,controls,groupby,patient='patient_num',...){
- # cases,controls: data.frames (should both contain columns specified by groupby and patient)
- # groupby: a vector of column names or numbers to group by
- # patient: the name of the column containing patient_num's
- # or equivalent
+# USE src/matcher.R instead
+# matcher <- function(cases,controls,groupby,patient='patient_num',...){
+#  # cases,controls: data.frames (should both contain columns specified by groupby and patient)
+#  # groupby: a vector of column names or numbers to group by
+#  # patient: the name of the column containing patient_num's
+#  # or equivalent
+# 
+#  # matches represents the unique cases (i.e. ill patients) to find matches for
+#  matches <- unique(cases[,c(patient,groupby)]);
+#  # record the number of cases
+#  nm <- nrow(matches);
+#  # create a blank column to store the matched control patient IDs
+#  matches$ctrl_pn<-NA;
+#  # initialize an empty list with an entry for each case
+#  outprep <- vector('list',nm);
+#  # initialize progress bar
+#  pb <- txtProgressBar(0,nm,style=3); counter <- 0;
+#  # seq(nm) = 1:nm, and we wrap it in sample() to randomize the order to mitigate bias
+#  for(ii in sample(seq(nm),nm)){
+#    # iimatched consists of the controls (of those still available) matching the ii-th
+#    # case, with a few extra columns
+#    iimatched <- merge(matches[ii,],controls,by=groupby,all.y=F,suffixes=c('.x',''));
+#    # if there are NO matching controls, skip the next few lines
+#    if(nrow(iimatched)>0){
+#      # otherwise, save ONE randomly selected matching control
+#      outprep[[ii]]<-iimatched[sample(seq(nrow(iimatched)),1),names(controls)];
+#      # record that control's patient number in the matches table and as a local variable
+#      iipat<-matches[ii,'ctrl_pn']<-outprep[[ii]][,patient];
+#      # use that local variable to remove records from that patient from the controls
+#      # data.frame for subsequent iterations of this loop (so we don't get redundant controls)
+#      controls<-controls[iipat!=controls[[patient]],];
+#    }
+#    # update the progress bar
+#    counter <- counter + 1; setTxtProgressBar(pb,counter);
+#  }
+#  # finish the progress bar
+#  close(pb);
+#  # outprep is a list of either NULLs or data.frames; out will be a single data.frame
+#  out <- do.call(rbind,outprep);
+#  # return a list object containing the matched controls and the log of what
+#  # case got match to what control (if any). Where no matches were found,
+#  # matches$ctrl_pn will have a value of NA.
+#  # We use invisible to avoid spamming the console in case you forget to capture output
+#  invisible(list(control_matched=out,matches=matches));
+# }
 
- # matches represents the unique cases (i.e. ill patients) to find matches for
- matches <- unique(cases[,c(patient,groupby)]);
- # record the number of cases
- nm <- nrow(matches);
- # create a blank column to store the matched control patient IDs
- matches$ctrl_pn<-NA;
- # initialize an empty list with an entry for each case
- outprep <- vector('list',nm);
- # initialize progress bar
- pb <- txtProgressBar(0,nm,style=3); counter <- 0;
- # seq(nm) = 1:nm, and we wrap it in sample() to randomize the order to mitigate bias
- for(ii in sample(seq(nm),nm)){
-   # iimatched consists of the controls (of those still available) matching the ii-th
-   # case, with a few extra columns
-   iimatched <- merge(matches[ii,],controls,by=groupby,all.y=F,suffixes=c('.x',''));
-   # if there are NO matching controls, skip the next few lines
-   if(nrow(iimatched)>0){
-     # otherwise, save ONE randomly selected matching control
-     outprep[[ii]]<-iimatched[sample(seq(nrow(iimatched)),1),names(controls)];
-     # record that control's patient number in the matches table and as a local variable
-     iipat<-matches[ii,'ctrl_pn']<-outprep[[ii]][,patient];
-     # use that local variable to remove records from that patient from the controls
-     # data.frame for subsequent iterations of this loop (so we don't get redundant controls)
-     controls<-controls[iipat!=controls[[patient]],];
-   }
-   # update the progress bar
-   counter <- counter + 1; setTxtProgressBar(pb,counter);
- }
- # finish the progress bar
- close(pb);
- # outprep is a list of either NULLs or data.frames; out will be a single data.frame
- out <- do.call(rbind,outprep);
- # return a list object containing the matched controls and the log of what
- # case got match to what control (if any). Where no matches were found,
- # matches$ctrl_pn will have a value of NA.
- # We use invisible to avoid spamming the console in case you forget to capture output
- invisible(list(control_matched=out,matches=matches));
-}
-
-prepost <- function(xx,ftest,which=1,nth=1,val=F,...){
-  # xx: a subsettable object
-  # ftest: a function that takes the subsettable object as its first arg and returns a boolean vector
-  # which: an integer or number of integers indicating which entries to select relative to the nth TRUE value returned by ftest
-  #        0 = the nth matching entry itself
-  #        1 = the first entry after the nth matching entry
-  #        -2 = two entries before the nth matching entry
-  #        ...and so on
-  # nth:   positive integer indicating which matching entry should be used as the reference point for what to return
-  # val:   whether to return values (vector-like objects only) or indexes
-  refpt <- (fout<-which(ftest(xx,...)))[nth];
-  if(is.na(refpt)) return(NULL) else {
-  sel <- which + refpt;
-    if(any(sel<1)||any(sel>length(fout))) return(NULL) else {
-      if(!val||!is.vector(xx)) return(sel) else {
-          return(xx[sel]);
-      }
-    }
-  }
-}
+# BELOW NO LONGER NEEDED
+# prepost <- function(xx,ftest,which=1,nth=1,val=F,...){
+#   # xx: a subsettable object
+#   # ftest: a function that takes the subsettable object as its first arg and returns a boolean vector
+#   # which: an integer or number of integers indicating which entries to select relative to the nth TRUE value returned by ftest
+#   #        0 = the nth matching entry itself
+#   #        1 = the first entry after the nth matching entry
+#   #        -2 = two entries before the nth matching entry
+#   #        ...and so on
+#   # nth:   positive integer indicating which matching entry should be used as the reference point for what to return
+#   # val:   whether to return values (vector-like objects only) or indexes
+#   refpt <- (fout<-which(ftest(xx,...)))[nth];
+#   if(is.na(refpt)) return(NULL) else {
+#   sel <- which + refpt;
+#     if(any(sel<1)||any(sel>length(fout))) return(NULL) else {
+#       if(!val||!is.vector(xx)) return(sel) else {
+#           return(xx[sel]);
+#       }
+#     }
+#   }
+# }
 
 # What findrange() can do...
 # 1. everything prepost() can do (I'll eventually replace it with a wrapper for findrange)
@@ -204,17 +207,18 @@ prepost <- function(xx,ftest,which=1,nth=1,val=F,...){
 #casebin: dataframe, with cases binned by age
 #ctrlbin: dataframe in the list returned by matcher()$control_matched, which is binned and trimmed to the same size as the binned cases
 
-samplegroup <- function(casebin, ctrlbin, n1=80, n2=n1) {
-  #take random sample ~10% of each cohort and combine them into a sample dataset for training/modeling
-  case_idx<-sample(nrow(casebin), n1)
-  case_sample<-casebin[case_idx,]
-  case_sample$group<-'case'
-  ctrl_idx<-sample(nrow(ctrlbin),n2)
-  ctrl_sample<-ctrlbin[ctrl_idx,]
-  ctrl_sample$group<-'control'
-  sample<-rbind(case_sample,ctrl_sample)
-  # The below should NOT be hardcoded, and should be in a different function
-  # altogether
-  #sample$injury<-apply(sample,1,function(xx) {any(xx[c(8,10,12)]!="")})
-  invisible(sample)
-}
+# BELOW NO LONGER USED
+# samplegroup <- function(casebin, ctrlbin, n1=80, n2=n1) {
+#   #take random sample ~10% of each cohort and combine them into a sample dataset for training/modeling
+#   case_idx<-sample(nrow(casebin), n1)
+#   case_sample<-casebin[case_idx,]
+#   case_sample$group<-'case'
+#   ctrl_idx<-sample(nrow(ctrlbin),n2)
+#   ctrl_sample<-ctrlbin[ctrl_idx,]
+#   ctrl_sample$group<-'control'
+#   sample<-rbind(case_sample,ctrl_sample)
+#   # The below should NOT be hardcoded, and should be in a different function
+#   # altogether
+#   #sample$injury<-apply(sample,1,function(xx) {any(xx[c(8,10,12)]!="")})
+#   invisible(sample)
+# }
