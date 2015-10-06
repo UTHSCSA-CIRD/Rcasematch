@@ -29,6 +29,10 @@ findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,st
   # matching result for fstart is returned and no further ones.
   if(missing(fend)) tend <- tstart else tend <- substitute(fend);  
   
+  # TODO: after code walk-through with LSMM to explain the higher priority
+  # cleaned up stuff, remove the extra tstart/tend variables and as time 
+  # permits go over that.
+  
   # if the start expression is a call, leave it alone, that's what we want
   if(is.call(tstart)){fstart <- tstart;}
   # if it's a name, evaluate it
@@ -44,18 +48,55 @@ findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,st
   
   # repeat the above for fend
   if(is.call(tend)){fend <- tend;} else if(is.name(tend)){fend <- eval(tend);}
-  if(is.character(fend)){fend = parse(text=fend)[[1]];}
+  if(is.character(fend)){fend <- parse(text=fend)[[1]];}
   
-  lead<-sort(lead); trail<-sort(trail);
-  ptstart <- which(stout<-fstart(xx,...))[nthstart];
-  # TODO: (more thorough) tests on ptstart
-  if(is.na(ptstart)) return(NULL);
-  ptend <- which((stend<-fend(xx,ptstart,...))[ptstart:length(stout)])[nthend]+ptstart-1;
-  # TODO: (more thorough) tests on ptend
-  if(is.na(ptend)) if(strict) return(NULL) else ptend<-length(stout);
-  leadidx <- lead+ptstart; trailidx <- trail+ptend;
-  out <- sort(unique(c(leadidx,(max(leadidx)+1):(min(trailidx)-1),trailidx)));
-  if(any(is.na(out)|out<1)) if(strict) return(NULL);
-  return(na.omit(out[out>0]));
-  # TODO: check for val argument, check for vectorness
+  #Find all values that evaluate to TRUE with fstart, take the nthstart one and
+  # assign that index to start
+  start <- which(eval(fstart,xx))[nthstart];
+  #if no index, we don't have an nthstart that evaluates to true
+  if(is.na(start)) return(NULL);
+
+  #Run an eval on a subset of xx that starts from index start
+  #Take the nthend of the evals (this index is offset by start -1)
+  end <- which(eval(fend, xx[(start):(nrow(xx)), ]))[nthend]
+  
+  #if we don't find the fend, we check to see if it's strict. If strict return null, else return all after start
+  if(is.na(end)){
+    if(strict){return (NULL);} else { 
+      end <- nrow(xx);
+    } #assigning the last value to end and proceeding to adding beginning offsets
+    #ending offsets are out of bounds
+  }else{
+    # if end is not null, we will add the start offset
+    end <- end + start - 1;
+  }
+  
+  # TODO: decide whether the helpfile should say that lead are negative offsets
+  # or that both lead and trail are positive offsets, and internally convert
+  # lead to negative. In either case, the "wrong" sign of the offset should
+  # just be ignored perhaps? For now, assuming that lead are negative 
+  # Note: pushing 0 to the end of the lead and trail vectors so that we never
+  # end up with a NULL vector which would cause an error when adding to start
+  # or to end
+  lead <- c(lead[lead<=0],0); trail <- c(trail[trail>=0],0);
+  lead <- lead+start; trail <- trail+end;
+  if(strict){
+    # If the strict argument is true, return NULL if the leading or trailing 
+    # offsets cannot fully fit within the input dataset xx
+    if(any(lead<=0)||any(trail>nrow(xx))) return(NULL);
+  } else {
+    # Otherwise, just fix them (if necessary, if not, it's a nullop anyway)
+    # as below
+    lead <- lead[lead>0]; trail <- trail[trail<=nrow(xx)];
+  }
+  
+  # Who cares if lead and trail overlap the body of the interval? Just let 
+  # unique() adjudicate that, and wrap sort() around it for good measure
+  idxs <- sort(unique(c(lead,start:end,trail)));
+  
+  # the below was moved here from earlier in the code and modified
+  # Note: invisible() used instead of return() so we don't spam the user's 
+  # console. Note also, lack of curly brackets not an error-- if only one
+  # statement in the body of if or else, brackets can be omitted in R
+  if(val) invisible(xx[idxs,]) else return(idxs);
 }
