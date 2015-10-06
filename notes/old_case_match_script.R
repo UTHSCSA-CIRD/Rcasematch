@@ -2,24 +2,74 @@
 
 #1) how to read in data
 #frd <- read.csv("~/obese_frac/fracture_data.csv",na.strings="");
-#2) how to pull out just the visits involving fractures
-### Oops. Below is where my mistake was. My bad.
-#frd_event<-subset(frd,v000_FRCTR_LWR_LMB!=''|v001_Sprns_strns_kn!=''|v002_Sprns_strns_ankl!='');
+#X) how to pull out just the visits involving fractures
+# this step no longer needed with corrected input datasets
 
-nthby <- function(data,groups,varcol,nth=1){
- dsplit<-by(data,groups,function(xx) {
-     xx<-xx[order(xx[[varcol]]),];
-     if(nth=='last') {
-       nth <- nrow(xx);
-     } else {
-       if(nth>nrow(xx)) return(NULL);
-     };
-     xx[nth,];
-   });
- out <- do.call(rbind,dsplit);
-}
+#2) Defining some needed transformations and creating a data dictionary
 
-# looks like we'll be using the above by()/do.call(rbind,...)
+# AGD provides everything needed to convert raw BMIs to z-scores
+install.packages('AGD');
+library(AGD);
+
+# alist is just like a list, except the values assigned to its keys do not get 
+# evaluated, they remain as call or name objects (unless of course they are raw
+# numbers or character strings). If the input comes by way of DataFinisher, we 
+# can count on it having age_at_visit_days, start_date, and birth_date
+# (though the cutpoints might vary for different projects)
+datatrans <- alist(
+  agebin = cut(age_at_visit_days,c(0,730,2190,4380,6570,7665,17885,Inf),labels=c('0-2','2-6','6-12','12-18','18-21','21-49','49+')),
+  start_date = as.Date(start_date),
+  birth_date = as.Date(birth_date),
+  # this one will vary from project to project, because BMI won't always have 
+  # the prefix v005 (though the abbreviated name following that prefix should
+  # be stable for a given site unless they change the NAME_CHAR in the ontology
+  # zbmi_num are the BMIs converted to z-scores normalized to age and sex
+  zbmi_num = pnorm(y2z(v005_Bd_Ms_Indx_num,age_at_visit_days/365.25,sex=toupper(sex_cd),ref=cdc.bmi)),
+  # this one is highly project specific; we are creating a single T/F factor out
+  # of three columns of factors each of which have _many_ levels.
+  fracsprain = factor(v000_FRCTR_LWR_LMB!=''|v001_Sprns_strns_kn!=''|v002_Sprns_strns_ankl!='')
+  );
+
+# ...we use the above alist as follows:
+# frd <- do.call(transform,c(list(frd),datatrans));
+# When you do c(A,B) where A and B are lists, you get a longer list containing 
+# the elements of A followed by the elements of B. However, since a data.frame
+# is a type of list, you cannot do c(frd,datatrans) because you then get a list
+# of each of the elements of frd (columns) followed by each of the elements of 
+# datatrans. So you wrap it in one extra level of list to protect it.
+
+# create a basic data-dictionary: column names and data-types
+#frdict <- data.frame(name=colnames(frd),class=sapply(frd,function(ii) class(ii)[[1]]),stringsAsFactors = F);
+#frdict$role <- frdict$class;
+# now, for the new role column, remove all the variables that aren't going to
+# be used in fitting a statistical model...
+#frdict[grepl(".*(_info|_inactive)",frd$name)|frd$name %in% c('start_date','birth_date'),'role']<-NA;
+# also, mark patient_num as the grouping variable, for future use in nlme and 
+# survival models.
+#frdict[frdict$name=='patient_num','role']<-'groupingvar';
+
+# Now, instead of managing lists of lengthy column names, you can do, e.g.,
+# plot(frd[,frdict$role=='numeric'])
+
+#3) how to pull out just the first fracture or sprain for patient 204
+# Notice that we first transformed the data.frame, and now the fracsprain
+# column makes it easier to subset
+# findrange(subset(frd,patient_num==204),fracsprain=='TRUE',rep_len(T,length(patient_num)),val=T)
+# Therefore, to pull out just the first fracture or sprain for all patients you do...
+# firstfrac <- byunby(frd,list(frd$patient_num),findrange,fstart=fracsprain=='TRUE',fend=rep_len(T,length(patient_num)),val=T)
+
+#X) how to bin by age_at_visit (already accomplished in step 2)
+
+# how to read in well-visit data:
+# use read.csv and skip step 3
+
+#5) with binned (in this case, by age_at_visit_days) data.frames
+# you are ready to run matcher(). Use the fractures binned data.frame
+# as cases
+
+# nthby() is no longer used
+
+# looks like we'll be using the by()/do.call(rbind,...)
 # pattern a lot, so let's create a convenience function for it
 byunby <- function(data,indices,FUN,...){
   # all arguments passed to by() and mean the same thing as 
@@ -27,21 +77,6 @@ byunby <- function(data,indices,FUN,...){
   dsplit <- by(data,indices,FUN,...,simplify=F);
   do.call(rbind,dsplit);
 }
-
-
-#3) how to pull out just the first fracture from all fracture visits
-# firstfrac <- nthby(frd_event,frd_event$patient_num,'age_at_visit_days');
-
-#4) how to bin by age_at_visit
-# fr1stbin<-transform(firstfrac,
-# agebin=cut(age_at_visit_days,c(0,730,2190,4380,6570,7665,17885,Inf),labels=c('0-2','2-6','6-12','12-18','18-21','21-49','49+')))
-
-# how to read in well-visit data:
-# use read.csv and skip steps 2 and 3
-
-#5) with binned (in this case, by age_at_visit_days) data.frames
-# you are ready to run matcher(). Use the fractures binned data.frame
-# as cases
 
 matcher <- function(cases,controls,groupby,patient='patient_num',...){
  # cases,controls: data.frames (should both contain columns specified by groupby and patient)
@@ -118,200 +153,30 @@ prepost <- function(xx,ftest,which=1,nth=1,val=F,...){
 # 6. look for an nth event before starting or ending a sequence of selected entries
 # 7. (maybe) be a framework for a collection of predefined fstart and fend functions targeted at common use cases (like the above)
 
-rangeAfter <- function(xx, fstart, change, rangeColumn, compare = '<=', requireVisit = F, clip = F, continuous = T, fend = NULL, val = T,... ){
-
-      # TODO (Add in a second parameter. E.G. BMI change within 60 days of fend.)
-
-  
-      #Range After utilizes the "findrange" function and then allows the user to search for visits X days after
-    #e.g. search for all visits within 60 days of the last bone fracture visit. 
-  #change - a numeric/integer value that indicates the number of days after the last event in the returned dataframe has occured.
-  #rangeColumn - character array containing the name of the column which contains the comparison value e.g. daysColumnName = "AgeAtVisit"
-    #support for date and numerical fields only. Returns NULL if attempting to use a non numerical or a factor that cannot be converted into date. 
-  #compare - looking for all values after fend (original 'compare' original + change) 
-    #e.g. looking for visits within 60 days of event ending- clip = T, change = default.
-  #requireVisit - If True rangeAfter will return NULL if there are no visits within daysAfter days of last event.
-    # If F- rangeAfter will return regardless of whether or not there are visits within range after. 
-    #Note: if the initial search for a visit from findrange returns NULL, rangeAfter will return NULL.
-  #clip - if T the final element in the subset returned by findrange will be clipped (if it matches fend && fend != NULL)
-    #if F no action is taken. 
-    # e.g. if you are searching for follow up visits after an event where there may be multiple consecutive visits with that event.
-      #you could make fstart = event and fend = noEvent. findrange would return the visit with no event in the last index. clip will trim that last index if it matches fend
-    #Note: if clip is T and requireVisit is F, strict should be F unless there is a reason why records would not be valid if there is no non event visits (e.g.: survival is questioned)
-  #continuous - T - show all visits from fend till compare no longer met. F = show only visits where compare  has been met
-  #val - used in the same was as findrange if T it returns a subset of the initial dataframe. If F it returns the verticies
-  #xx, fstart and fend are required parameters of findrange. Additional parameters may be passed in the ... Please reference findrange for more information on these parameters.
-  #Note: you can use rangeAfter to find changing numerical values, e.g. daysAfter = 1 daysColumnName = "BMI" all visits until BMI is > (eventBMI +1)
-
-  #Checking Compare (we return if compare is invalid)
-   if(class(xx[ ,rangeColumn]) == "numeric"){
-    if(!(compare == "<" | compare == "<=" | compare == "==" | compare == ">=" | compare == ">")){
-      print("Invalid compare. Compare must be =, <, <=, ==, >=, >, or !=")
-      return(NULL)
-    }
-  }else{
-    tryCatch({
-      xx[ ,rangeColumn] <- as.Date(xx[,rangeColumn])
-                                   }, error = function(e) 
-                                     {print("rangeColumn non numeric, non date");return(NULL);})
-    
-    if(!(compare == "<" | compare == "<=" | compare == "==" | compare == ">=" | compare == ">" | compare == "!=" )){
-      print("Invalid compare. Compare must be =, <, <=, ==, >=, >, or !=")
-      return(NULL)
-    }
-  }
-  sub1 = findrange(xx, fstart, fend, trail=0, val = F)
-  if(is.null(sub1))return(NULL)
-  
-  #if clip and fend eval True on the last element, clip the last element
-  if(clip){
-    if(eval(fend, xx[sub1[length(sub1)],])) sub1 = sub1[1:(length(sub1)-1)]
-  }
-  #Check if we are on the last visit for patient X. 
-  if(sub1[length(sub1)] == nrow(xx)){
-    sub2 = NULL
-  }else{
-    sub2 = xx[(sub1[length(sub1)]+1):nrow(xx),]
-    original = xx[sub1[length(sub1)], rangeColumn]
-    if(class(original) == "numeric"){
-      newStart = paste(rangeColumn, compare,  (original + change))
-      newEnd = paste("!(", rangeColumn, compare, (original + change), ")")
-      
-    }else{
-      if(class(original) == "Date"){
-        newStart = paste0(rangeColumn, compare,  "as.Date('", (original + change), "')")
-        newEnd = paste0("!(", rangeColumn, compare, "as.Date('",(original + change), "'))")
-      }else{
-        #error, invalid test type
-        return(NULL)
-      }
-    }
-    sub2 = findrange(sub2, newStart, newEnd, 0, 0, 1, 1, F, F)
-    
-    #clip the newEnd value if exists. 
-    if(!is.null(sub2)){
-      sub2 = sub2 + sub1[length(sub1)]
-      e = eval(parse(text=newEnd)[[1]], xx[sub2[length(sub2)],])
-      #e handles the issues that arise from incomplete data sets. 
-      if(!is.na(e)){
-        if(e){
-          sub2 = sub2[1:length(sub2)-1]
-        }
-      }
-    }
-  }
-  if(is.null(sub2)){
-    if(requireVisit){
-      return(NULL)
-    }else{
-      if(val){
-        return (xx[sub1,])
-      }else{
-        return(sub1)
-      }
-    }
-  }
-  indicies = NULL
-  if(continuous){
-    indicies = c(sub1[1] : sub2[length(sub2)])
-  }else{
-    indicies = c(sub1, sub2)
-  }
-  if(val){
-    return (xx[indicies,])
-  }else{
-    return(indicies)
-  }
-}
-
-findrange <- function(xx,fstart,fend = NULL,lead=0,trail=0,nthstart=1,nthend=1,val=T,strict=F){
-  #xx is a dataframe containing the set of records to be considered "one patient" or one set of data to analyse
-  #fstart is a criterion that should calculate a boolean value when applied to the dataframe
-  # accepts string or expression.
-  #fend -using the index found in fstart, utilize this new criterion to find the last valid visit
-  # accepts string or expression.
-  #if left blank, end will equal start
-  #nthstart = the index of "true" values you wish to use- e.g. the second occurance of a fracture, default first occurance
-  #strict: T/F, if TRUE returns NULL when all criteria cannot be satisfied. Otherwise return as much of the range as does satisfy criteria; if an nthstart value cannot be found, however, a NULL is still returned
-  #val: When true val returns a subset of xx, when false val returns a vector list. (affected by strict)
-
-  tstart = substitute(fstart);
-  tend = substitute(fend);
-  if(class(tstart) == "call"){fstart = tstart;}
-  if(class(tstart) == "name"){
-    fstart = eval(tstart)
-  }
-  if(class(fstart)=="character"){
-    fstart = parse(text=fstart)[[1]]; 
-  }
-  
-  if(class(tend) == "call"){fend = tend;}
-  if(class(tend) == "name"){
-    fend = eval(tend);
-  }
-  if(class(fend)=="character"){
-    fend = parse(text=fend)[[1]]; 
-  }
-  
-  if(is.null(fend)){fend=fstart}
-  
-  #Find all values that evaluate to TRUE with fstart, take the nthstart one and assign the index to start
-  start = which(eval(fstart,xx))[nthstart];
-  
-  #if no index, we don't have an nthstart that evaluates to true
-  if(is.na(start)) return(NULL);
-  
-  #Run an eval on a subset of xx that starts from index start
-  #Take the nthend of the evals (this index is offset by start -1)
-  end = which(eval(fend, xx[(start):(nrow(xx)), ]))[nthend]
-  
-  #if we don't find the fend, we check to see if it's strict. If strict return null, else return all after start
-  if(is.na(end)){
-    if(strict){return (NULL);}
-    else { 
-      end = nrow(xx);
-    } #assigning the last value to end and proceeding to adding beginning offsets
-    #ending offsets are out of bounds
-  }else{
-    # if end is not null, we will add the start offset
-    end = end + start - 1;
-  }
-  if(val){
-    tmp = xx[start:end, ];
-  }else{
-    tmp = c(start:end);
-  }
-  
-  if(lead[1] != 0){
-    leadi = sort(lead)+start;
-    if(leadi[1] < 1 && strict) return(NULL);
-    leadi = leadi[leadi > 0];
-    #Check if we can account for all requested indexes, if not return null if strict
-    if(length(leadi) != 0){
-      if(val){
-        tmp = rbind(xx[leadi, ], tmp);
-      }else{
-        tmp = c(leadi, tmp);
-      }
-      
-    }else{
-      if(strict) return(NULL);
-    }
-  }
-  if(trail[1] != 0){
-    traili = sort(trail) + end;
-    if(traili[length(traili)] > nrow(xx) && strict) return(NULL);
-    traili = traili[traili<=nrow(xx)];
-    if(length(traili) != 0){
-      if(val){
-        tmp = rbind(tmp, xx[traili,]);
-      }else{
-        tmp = c(tmp, traili);
-      }
-    }
-  }
-  return (tmp);
-}
+# This copy of findrange obsoleted. Shortened and corrected one with additional comments
+# has been put into findrange.R and that one should be edited from now on
+# findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,strict=F,...){
+#   # xx:   a subsettable object
+#   # fstart,fend: functions taking xx as first arg, first one returns starting reference point, second returns ending one (and takes the starting offset as its second arg)
+#   #             hint... fend should be the first ocurrence where you want to stop retrieving further data
+#   # lead,trail: integers or vectors indicating sequences of entries preceeding the start and following the end, respectively, relative to start and end respectively, can be negative or 0
+#   # nthstart,nthend: integers indicating which starting positive value of fstart is the first reference point; the ending reference point is nth relative to whatever turns out to be the starting one
+#   # val: whether to return values (if possible, not yet implemented)
+#   # strict: T/F, if TRUE returns NULL when all criteria cannot be satisfied. Otherwise return as much of the range as does satisfy criteria; if an nthstart value cannot be found, however, a NULL is still returned
+#   # TODO: tests on argument values
+#   lead<-sort(lead); trail<-sort(trail);
+#   ptstart <- which(stout<-fstart(xx,...))[nthstart];
+#   # TODO: (more thorough) tests on ptstart
+#   if(is.na(ptstart)) return(NULL);
+#   ptend <- which((stend<-fend(xx,ptstart,...))[ptstart:length(stout)])[nthend]+ptstart-1;
+#   # TODO: (more thorough) tests on ptend
+#   if(is.na(ptend)) if(strict) return(NULL) else ptend<-length(stout);
+#   leadidx <- lead+ptstart; trailidx <- trail+ptend;
+#   out <- sort(unique(c(leadidx,(max(leadidx)+1):(min(trailidx)-1),trailidx)));
+#   if(any(is.na(out)|out<1)) if(strict) return(NULL);
+#   return(na.omit(out[out>0]));
+#   # TODO: check for val argument, check for vectorness
+# }
 
 
 
@@ -353,10 +218,3 @@ samplegroup <- function(casebin, ctrlbin, n1=80, n2=n1) {
   #sample$injury<-apply(sample,1,function(xx) {any(xx[c(8,10,12)]!="")})
   invisible(sample)
 }
-
-# How to convert to percentiles
-# install.packages('AGD')
-# library(AGD)
-# below takes care of everything!
-# sample$prc_bmi <- pnorm(y2z(sample$v005_Bd_Ms_Indx_num,sample$age_at_visit_days/365.25,sex=toupper(sample$sex_cd),ref=cdc.bmi))
-
