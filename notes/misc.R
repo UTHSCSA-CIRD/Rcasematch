@@ -54,7 +54,8 @@ frdict[frdict$name %in% groupvars] <- 'grouping';
 frdict[frdict$name %in% rawvars] <- 'raw';
 frdict[frdict$name %in% respvars] <- 'response';
 
-follow60 <- byunby(fractr,list(fractr$patient_num),findrange,fstart=fracsprain=='TRUE',fend=age_at_visit_days>(age_at_visit_days[1]+60),val=T)
+follow60 <- byunby(fractr,list(fractr$patient_num),findrange,fstart=fracsprain_tr_fac=='TRUE',fend=age_at_visit_days>(age_at_visit_days[1]+60),val=T);
+untilfrac <- byunby(fractr,list(fractr$patient_num),findrange,fstart=T,fend=c(F,fracsprain_tr_fac=='TRUE'),val=T);
 
 tmp = quote(v000_FRCTR_LWR_LMB != ""| v001_Sprns_strns_kn != ""| v002_Sprns_strns_ankl != "");
 ntmp = quote(!(v000_FRCTR_LWR_LMB != "" | v001_Sprns_strns_kn != "" | v002_Sprns_strns_ankl !=""))
