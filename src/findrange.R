@@ -19,7 +19,7 @@ findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,st
   # TODO: tests on argument values
   
   # grab the fstart and fend arguments before they can get evaluated
-  tstart <- substitute(fstart);
+  fstart <- substitute(fstart);
   
   # Previously we tested for fend being NULL, but the default state of fend
   # is not null-- it's technically a mandatory argument and when it's not specified
@@ -27,16 +27,16 @@ findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,st
   # Whether this is a good idea or not needs further thought. Perhaps a better default
   # value is one that immediately ceases accumulating output so that by default the first
   # matching result for fstart is returned and no further ones.
-  if(missing(fend)) tend <- tstart else tend <- substitute(fend);  
+  if(missing(fend)) fend <- fstart else fend <- substitute(fend);  
   
   # TODO: after code walk-through with LSMM to explain the higher priority
   # cleaned up stuff, remove the extra tstart/tend variables and as time 
   # permits go over that.
   
   # if the start expression is a call, leave it alone, that's what we want
-  if(is.call(tstart)){fstart <- tstart;}
+  #if(is.call(tstart)){fstart <- tstart;}
   # if it's a name, evaluate it
-  else if(is.name(tstart)){ fstart <- eval(tstart);}
+  if(is.name(fstart)){ fstart <- eval(fstart);}
   # if it evaluates to a character 
   # (or if it was all along and thus did not meet the above checks) 
   # try parsing it to turn it into a call
@@ -47,7 +47,8 @@ findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,st
   # an R call
   
   # repeat the above for fend
-  if(is.call(tend)){fend <- tend;} else if(is.name(tend)){fend <- eval(tend);}
+  #if(is.call(tend)){fend <- tend;} else 
+  if(is.name(fend)){fend <- eval(fend);}
   if(is.character(fend)){fend <- parse(text=fend)[[1]];}
   
   #Find all values that evaluate to TRUE with fstart, take the nthstart one and
@@ -84,6 +85,8 @@ findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,st
   # Note: pushing 0 to the end of the lead and trail vectors so that we never
   # end up with a NULL vector which would cause an error when adding to start
   # or to end
+  # TODO: test that lead and trail are integers
+  # TODO: emit warnings when correcting redundancies, illegal offsets, etc.
   lead <- c(lead[lead<=0],0); trail <- c(trail[trail>=0],0);
   lead <- lead+start; trail <- trail+end;
   if(strict){

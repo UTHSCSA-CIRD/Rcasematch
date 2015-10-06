@@ -17,9 +17,11 @@ library(AGD);
 # can count on it having age_at_visit_days, start_date, and birth_date
 # (though the cutpoints might vary for different projects)
 datatrans <- alist(
-  agebin = cut(age_at_visit_days,c(0,730,2190,4380,6570,7665,17885,Inf),labels=c('0-2','2-6','6-12','12-18','18-21','21-49','49+')),
+  age_tr_fac = cut(age_at_visit_days,c(0,730,2190,4380,6570,7665,17885,Inf),labels=c('0-2','2-6','6-12','12-18','18-21','21-49','49+')),
   start_date = as.Date(start_date),
   birth_date = as.Date(birth_date),
+  numvis_tr_num = ave(age_at_visit_days,patient_num,FUN=length),
+  histlen_tr_num = ave(age_at_visit_days,patient_num,FUN=function(ii) if(length(ii)==1) 0 else diff(range(ii))),
   # these will vary from project to project, because BMI won't always have 
   # the prefix v005 (though the abbreviated name following that prefix should
   # be stable for a given site unless they change the NAME_CHAR in the ontology
@@ -27,12 +29,12 @@ datatrans <- alist(
   # unit errors
   v005_Bd_Ms_Indx_num = ifelse(v005_Bd_Ms_Indx_num<12|v005_Bd_Ms_Indx_num>75,NA,v005_Bd_Ms_Indx_num),
   # zbmi_num are the BMIs converted to z-scores normalized to age and sex
-  zbmi_num = ifelse(v005_Bd_Ms_Indx_num<12|v005_Bd_Ms_Indx_num>75,NA,
-                    pnorm(y2z(v005_Bd_Ms_Indx_num,age_at_visit_days/365.25,
-                              sex=toupper(sex_cd),ref=cdc.bmi))),
+  zbmi_tr_num = ifelse(v005_Bd_Ms_Indx_num<12|v005_Bd_Ms_Indx_num>75,NA,
+                    y2z(v005_Bd_Ms_Indx_num,age_at_visit_days/365.25,
+                              sex=toupper(sex_cd),ref=cdc.bmi)),
   # this one is highly project specific; we are creating a single T/F factor out
   # of three columns of factors each of which have _many_ levels.
-  fracsprain = factor(v000_FRCTR_LWR_LMB!=''|v001_Sprns_strns_kn!=''|v002_Sprns_strns_ankl!='')
+  fracsprain_tr_fac = factor(v001_FRCTR_LWR_LMB!=''|v004_Sprns_strns_kn!=''|v003_Sprns_strns_ankl!='')
   );
 
 # ...we use the above alist as follows:
