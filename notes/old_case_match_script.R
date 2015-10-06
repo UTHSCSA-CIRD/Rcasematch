@@ -62,6 +62,10 @@ datatrans <- alist(
 # findrange(subset(frd,patient_num==204),fracsprain=='TRUE',rep_len(T,length(patient_num)),val=T)
 # Therefore, to pull out just the first fracture or sprain for all patients you do...
 # firstfrac <- byunby(frd,list(frd$patient_num),findrange,fstart=fracsprain=='TRUE',fend=rep_len(T,length(patient_num)),val=T)
+# all until first injury (tricky, have to prepend an F so that the event itself gets included):
+# untilfrac <- byunby(fftr,list(fftr$patient_num),findrange,fstart=rep_len(T,length(age_at_visit_days)),fend=c(F,fracsprain=='TRUE'),val=T)
+# sixty-day followup after first injury:
+# follow60 <- byunby(fftr,list(fftr$patient_num),findrange,fstart=fracsprain=='TRUE',fend=age_at_visit_days>(age_at_visit_days[1]+60),val=T)
 
 #X) how to bin by age_at_visit (already accomplished in step 2)
 

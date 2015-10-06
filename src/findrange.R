@@ -57,7 +57,7 @@ findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,st
   if(is.na(start)) return(NULL);
 
   #Run an eval on a subset of xx that starts from index start
-  #Take the nthend of the evals (this index is offset by start -1)
+  #Take the nthend of the evals (this index is will be offset by start -2)
   end <- which(eval(fend, xx[(start):(nrow(xx)), ]))[nthend]
   
   #if we don't find the fend, we check to see if it's strict. If strict return null, else return all after start
@@ -66,9 +66,15 @@ findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,st
       end <- nrow(xx);
     } #assigning the last value to end and proceeding to adding beginning offsets
     #ending offsets are out of bounds
-  }else{
+    # if end == 1, special case, accrual of results immediately exits
+    # if end == 2, we stop before the second result, so outcome same as above
+  }else if(end<3){end<-start;} else {
     # if end is not null, we will add the start offset
-    end <- end + start - 1;
+    # We used to think the offset was start - 1, but it's not
+    # Let's say raw end = 3. That means: stop accruing before the 3rd result
+    # the first accrual is always equal to start, so we need to subtract 1
+    # and, we need to stop _before_ we get to third result, so subtract 1 more
+    end <- end + start - 2;
   }
   
   # TODO: decide whether the helpfile should say that lead are negative offsets
