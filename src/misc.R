@@ -1,3 +1,8 @@
+frac = read.csv("manuells_fracV2.2.csv")
+well = read.csv("manuells_WellVisitV2.2.csv")
+
+## TODO code to clean data 
+
 tmp = quote(v000_FRCTR_LWR_LMB != ""| v001_Sprns_strns_kn != ""| v002_Sprns_strns_ankl != "");
 ntmp = quote(!(v000_FRCTR_LWR_LMB != "" | v001_Sprns_strns_kn != "" | v002_Sprns_strns_ankl !=""))
 tmp2 = quote(age_at_visit_days > 6000);
