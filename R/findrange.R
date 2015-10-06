@@ -8,7 +8,7 @@
 # 7. (maybe) be a framework for a collection of predefined fstart and fend functions targeted at common use cases (like the above)
 
 
-findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,strict=F,...){
+findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,strict=F, clip = T...){
   # xx:   a subsettable object
   # fstart,fend: functions taking xx as first arg, first one returns starting reference point, second returns ending one (and takes the starting offset as its second arg)
   #             hint... fend should be the first ocurrence where you want to stop retrieving further data
@@ -16,6 +16,7 @@ findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,st
   # nthstart,nthend: integers indicating which starting positive value of fstart is the first reference point; the ending reference point is nth relative to whatever turns out to be the starting one
   # val: whether to return values (if possible, not yet implemented)
   # strict: T/F, if TRUE returns NULL when all criteria cannot be satisfied. Otherwise return as much of the range as does satisfy criteria; if an nthstart value cannot be found, however, a NULL is still returned
+  # clip if T - will clip the last record if it matches fend. Use if fend = !fstart.
   # TODO: tests on argument values
   
   # grab the fstart and fend arguments before they can get evaluated
@@ -42,6 +43,7 @@ findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,st
   # try parsing it to turn it into a call
   if(is.character(fstart)){ fstart = parse(text=fstart)[[1]];}
   # ...it might still not be a valid call at that point, but hey, we tried
+  if(!is.call(fstart)&&!is.logical(fstart)){stop('fstart does not evaluate to a call')}
   # TODO: put some final test here that will give the user some actionable error message if
   # despite our best efforts they still managed to pass something that doesn't evaluate as
   # an R call
@@ -50,7 +52,7 @@ findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,st
   #if(is.call(tend)){fend <- tend;} else 
   if(is.name(fend)){fend <- eval(fend);}
   if(is.character(fend)){fend <- parse(text=fend)[[1]];}
-  
+  if(!is.call(fend)&&!is.logical(fend)){stop('fend does not evaluate to a call')}
   #Find all values that evaluate to TRUE with fstart, take the nthstart one and
   # assign that index to start
   start <- which(eval(fstart,xx))[nthstart];
@@ -69,14 +71,11 @@ findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,st
     #ending offsets are out of bounds
     # if end == 1, special case, accrual of results immediately exits
     # if end == 2, we stop before the second result, so outcome same as above
-  }else if(end<3){end<-start;} else {
-    # if end is not null, we will add the start offset
-    # We used to think the offset was start - 1, but it's not
-    # Let's say raw end = 3. That means: stop accruing before the 3rd result
-    # the first accrual is always equal to start, so we need to subtract 1
-    # and, we need to stop _before_ we get to third result, so subtract 1 more
-    end <- end + start - 2;
+  }else {
+    end = end + start - 1
+    if(clip && eval(fend, xx[end,])){end = end - 1}
   }
+  
   
   # TODO: decide whether the helpfile should say that lead are negative offsets
   # or that both lead and trail are positive offsets, and internally convert
@@ -85,9 +84,15 @@ findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,st
   # Note: pushing 0 to the end of the lead and trail vectors so that we never
   # end up with a NULL vector which would cause an error when adding to start
   # or to end
-  # TODO: test that lead and trail are integers
+  # test that lead and trail are integers
+  if(any(!is.numeric(lead))){warning("non-numeric values in lead were removed"); lead = lead[is.numeric(lead)];}
+  if(any(!is.numeric(trail))){warning("non-numeric values in trail were removed"); trail = trail[is.numeric(trail)];}
+  
   # TODO: emit warnings when correcting redundancies, illegal offsets, etc.
-  lead <- c(lead[lead<=0],0); trail <- c(trail[trail>=0],0);
+  if(any(lead>0)){warning("Only negative values are acceptable for lead. Removing positive indicies.")}
+  if(any(trail<0)){warning("Only positive values are acceptable for trail. Removing positive indicies.")}
+  
+  lead <- c(lead[lead<0],0); trail <- c(trail[trail>0],0);
   lead <- lead+start; trail <- trail+end;
   if(strict){
     # If the strict argument is true, return NULL if the leading or trailing 
