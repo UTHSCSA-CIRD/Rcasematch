@@ -2,24 +2,74 @@
 
 #1) how to read in data
 #frd <- read.csv("~/obese_frac/fracture_data.csv",na.strings="");
-#2) how to pull out just the visits involving fractures
-### Oops. Below is where my mistake was. My bad.
-#frd_event<-subset(frd,v000_FRCTR_LWR_LMB!=''|v001_Sprns_strns_kn!=''|v002_Sprns_strns_ankl!='');
+#X) how to pull out just the visits involving fractures
+# this step no longer needed with corrected input datasets
 
-nthby <- function(data,groups,varcol,nth=1){
- dsplit<-by(data,groups,function(xx) {
-     xx<-xx[order(xx[[varcol]]),];
-     if(nth=='last') {
-       nth <- nrow(xx);
-     } else {
-       if(nth>nrow(xx)) return(NULL);
-     };
-     xx[nth,];
-   });
- out <- do.call(rbind,dsplit);
-}
+#2) Defining some needed transformations and creating a data dictionary
 
-# looks like we'll be using the above by()/do.call(rbind,...)
+# AGD provides everything needed to convert raw BMIs to z-scores
+install.packages('AGD');
+library(AGD);
+
+# alist is just like a list, except the values assigned to its keys do not get 
+# evaluated, they remain as call or name objects (unless of course they are raw
+# numbers or character strings). If the input comes by way of DataFinisher, we 
+# can count on it having age_at_visit_days, start_date, and birth_date
+# (though the cutpoints might vary for different projects)
+datatrans <- alist(
+  agebin = cut(age_at_visit_days,c(0,730,2190,4380,6570,7665,17885,Inf),labels=c('0-2','2-6','6-12','12-18','18-21','21-49','49+')),
+  start_date = as.Date(start_date),
+  birth_date = as.Date(birth_date),
+  # this one will vary from project to project, because BMI won't always have 
+  # the prefix v005 (though the abbreviated name following that prefix should
+  # be stable for a given site unless they change the NAME_CHAR in the ontology
+  # zbmi_num are the BMIs converted to z-scores normalized to age and sex
+  zbmi_num = pnorm(y2z(v005_Bd_Ms_Indx_num,age_at_visit_days/365.25,sex=toupper(sex_cd),ref=cdc.bmi)),
+  # this one is highly project specific; we are creating a single T/F factor out
+  # of three columns of factors each of which have _many_ levels.
+  fracsprain = factor(v000_FRCTR_LWR_LMB!=''|v001_Sprns_strns_kn!=''|v002_Sprns_strns_ankl!='')
+  );
+
+# ...we use the above alist as follows:
+# frd <- do.call(transform,c(list(frd),datatrans));
+# When you do c(A,B) where A and B are lists, you get a longer list containing 
+# the elements of A followed by the elements of B. However, since a data.frame
+# is a type of list, you cannot do c(frd,datatrans) because you then get a list
+# of each of the elements of frd (columns) followed by each of the elements of 
+# datatrans. So you wrap it in one extra level of list to protect it.
+
+# create a basic data-dictionary: column names and data-types
+#frdict <- data.frame(name=colnames(frd),class=sapply(frd,function(ii) class(ii)[[1]]),stringsAsFactors = F);
+#frdict$role <- frdict$class;
+# now, for the new role column, remove all the variables that aren't going to
+# be used in fitting a statistical model...
+#frdict[grepl(".*(_info|_inactive)",frd$name)|frd$name %in% c('start_date','birth_date'),'role']<-NA;
+# also, mark patient_num as the grouping variable, for future use in nlme and 
+# survival models.
+#frdict[frdict$name=='patient_num','role']<-'groupingvar';
+
+# Now, instead of managing lists of lengthy column names, you can do, e.g.,
+# plot(frd[,frdict$role=='numeric'])
+
+#3) how to pull out just the first fracture or sprain for patient 204
+# Notice that we first transformed the data.frame, and now the fracsprain
+# column makes it easier to subset
+# findrange(subset(frd,patient_num==204),fracsprain=='TRUE',rep_len(T,length(patient_num)),val=T)
+# Therefore, to pull out just the first fracture or sprain for all patients you do...
+# firstfrac <- byunby(frd,list(frd$patient_num),findrange,fstart=fracsprain=='TRUE',fend=rep_len(T,length(patient_num)),val=T)
+
+#X) how to bin by age_at_visit (already accomplished in step 2)
+
+# how to read in well-visit data:
+# use read.csv and skip step 3
+
+#5) with binned (in this case, by age_at_visit_days) data.frames
+# you are ready to run matcher(). Use the fractures binned data.frame
+# as cases
+
+# nthby() is no longer used
+
+# looks like we'll be using the by()/do.call(rbind,...)
 # pattern a lot, so let's create a convenience function for it
 byunby <- function(data,indices,FUN,...){
   # all arguments passed to by() and mean the same thing as 
@@ -27,21 +77,6 @@ byunby <- function(data,indices,FUN,...){
   dsplit <- by(data,indices,FUN,...,simplify=F);
   do.call(rbind,dsplit);
 }
-
-
-#3) how to pull out just the first fracture from all fracture visits
-# firstfrac <- nthby(frd_event,frd_event$patient_num,'age_at_visit_days');
-
-#4) how to bin by age_at_visit
-# fr1stbin<-transform(firstfrac,
-# agebin=cut(age_at_visit_days,c(0,730,2190,4380,6570,7665,17885,Inf),labels=c('0-2','2-6','6-12','12-18','18-21','21-49','49+')))
-
-# how to read in well-visit data:
-# use read.csv and skip steps 2 and 3
-
-#5) with binned (in this case, by age_at_visit_days) data.frames
-# you are ready to run matcher(). Use the fractures binned data.frame
-# as cases
 
 matcher <- function(cases,controls,groupby,patient='patient_num',...){
  # cases,controls: data.frames (should both contain columns specified by groupby and patient)
@@ -183,10 +218,3 @@ samplegroup <- function(casebin, ctrlbin, n1=80, n2=n1) {
   #sample$injury<-apply(sample,1,function(xx) {any(xx[c(8,10,12)]!="")})
   invisible(sample)
 }
-
-# How to convert to percentiles
-# install.packages('AGD')
-# library(AGD)
-# below takes care of everything!
-# sample$prc_bmi <- pnorm(y2z(sample$v005_Bd_Ms_Indx_num,sample$age_at_visit_days/365.25,sex=toupper(sample$sex_cd),ref=cdc.bmi))
-
