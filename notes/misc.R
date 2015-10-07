@@ -1,5 +1,6 @@
 if(!require(AGD)) install.packages('AGD');
 library(AGD);
+library(Rcasematch)
 ## File locations (change to correct local paths)
 fracfile <- 'manuells_fracV2.2.csv';
 wellfile <- 'manuells_WellVisitV2.2.csv';
@@ -57,8 +58,8 @@ frdict[frdict$name %in% respvars] <- 'response';
 follow60 <- byunby(fractr,list(fractr$patient_num),findrange,fstart=fracsprain_tr_fac=='TRUE',fend=age_at_visit_days>(age_at_visit_days[1]+60),val=T);
 untilfrac <- byunby(fractr,list(fractr$patient_num),findrange,fstart=T,fend=c(F,fracsprain_tr_fac=='TRUE'),val=T);
 
-tmp = quote(v000_FRCTR_LWR_LMB != ""| v001_Sprns_strns_kn != ""| v002_Sprns_strns_ankl != "");
-ntmp = quote(!(v000_FRCTR_LWR_LMB != "" | v001_Sprns_strns_kn != "" | v002_Sprns_strns_ankl !=""))
+tmp = quote(fracsprain_tr_fac=='TRUE');
+ntmp = quote(fracsprain_tr_fac=='FALSE')
 tmp2 = quote(age_at_visit_days > 6000);
 
 #by
@@ -67,11 +68,27 @@ x = byunby(frac, frac[ , "patient_num"], FUN = findrange, fstart = tmp2, lead = 
 View(x)
 
 #findrange
-x = byunby(frac, frac[ , "patient_num"], FUN = findrange, fstart = tmp2,fend = "v003_Bd_Ms_Indx_num < 26", strict = T)
+#Clip F
+x = byunby(fractr, fractr[ , "patient_num"], FUN = findrange, fstart = tmp2,fend = "v005_Bd_Ms_Indx_num < 26", strict = T, clip = F, val = T)
+x = byunby(fractr, fractr[ , "patient_num"], FUN = findrange, fstart = tmp,fend = fstart, strict = T, clip = F, val = T, trail = 2)
+#clip T
+x = byunby(fractr, fractr[ , "patient_num"], FUN = findrange, fstart = tmp,fend = ntmp, strict = T, clip = T, val = T, trail = 1)
+x = byunby(fractr, fractr[ , "patient_num"], FUN = findrange, fstart = tmp,fend = ntmp, strict = T, clip = T, val = T)
+sum(x$fracsprain_tr_fac== FALSE)
 
 #rangeAfter
-x = byunby(frac, frac[ , "patient_num"], FUN = rangeAfter, 60, "start_date", "<=", T, T, fstart = tmp, fend= ntmp, clip = T, strict = T)
-y = byunby(frac, frac[ , "patient_num"], FUN = rangeAfter, 60, "age_at_visit_days", "<=", T, T, fstart = tmp, fend= ntmp, clip = T, strict = T)
-all.equal(x, y) #all but the "start_date" column which has been converted from a facto to a date.
+#x = byunby(frac, frac[ , "patient_num"], FUN = rangeAfter, 60, "start_date", "<=", T, T, fstart = tmp, fend= ntmp, clip = T, strict = T)
+#y = byunby(frac, frac[ , "patient_num"], FUN = rangeAfter, 60, "age_at_visit_days", "<=", T, T, fstart = tmp, fend= ntmp, clip = T, strict = T)
+#all.equal(x, y) #all but the "start_date" column which has been converted from a facto to a date.
 #rangeAfter- BMI (to handle adjustments for NAs)
-x = byunby(frac, frac[ , "patient_num"], FUN = rangeAfter, 2, "v003_Bd_Ms_Indx_num", ">=", T, T, fstart = tmp, fend= ntmp, clip = T, strict = T)
+#x = byunby(frac, frac[ , "patient_num"], FUN = rangeAfter, 2, "v003_Bd_Ms_Indx_num", ">=", T, T, fstart = tmp, fend= ntmp, clip = T, strict = T)
+
+##  MATCHING WELL TO FRACTURES  ##
+firstfrac = byunby(fractr, fractr[ , "patient_num"], FUN = findrange, fstart = tmp,fend = T, clip = F, val = T)
+
+matched = matcher(firstfrac,welltr,c("sex_cd", "age_tr_fac"))
+matchFirstFrac = sampler(100,matched$matches,firstfrac,welltr)
+
+#Time until
+fracTimeUntil = x = byunby(fractr, fractr[ , "patient_num"], FUN = findrange, fstart = T,fend = tmp, strict = T, clip = F, val = T)
+matchFracUntil = sampler(100,matched$matches,fracTimeUntil,welltr, matchType = 'A')
