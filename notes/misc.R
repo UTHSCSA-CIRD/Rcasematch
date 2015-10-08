@@ -35,7 +35,7 @@ datatrans <- alist(
   # this one is highly project specific; we are creating a single T/F factor out
   # of three columns of factors each of which have _many_ levels.
   fracsprain_tr_fac = factor(v001_FRCTR_LWR_LMB!=''|v004_Sprns_strns_kn!=''|v003_Sprns_strns_ankl!='')
-);
+  );
 
 
 frac <- read.csv(fracfile,header = T);
@@ -89,6 +89,13 @@ firstfrac = byunby(fractr, fractr[ , "patient_num"], FUN = findrange, fstart = t
 matched = matcher(firstfrac,welltr,c("sex_cd", "age_tr_fac"))
 matchFirstFrac = sampler(100,matched$matches,firstfrac,welltr)
 
+
+followupFrac = byunby(fractr, fractr[ , "patient_num"], FUN = rangeAfter, fstart = "fracsprain_tr_fac == 'TRUE'", 60, "age_at_visit_days", fend = T, clip = F, requireVisit = T)
+followupWell = byunby(welltr, welltr[ , c("patient_num","age_tr_fac")], FUN = rangeAfterRecord, 60, "age_at_visit_days")
+matchFollowup = sampler(100, matched$matches,followupFrac, followupWell, matchType = 'A', inclusion = "N")
+
 #Time until
 fracTimeUntil = x = byunby(fractr, fractr[ , "patient_num"], FUN = findrange, fstart = T,fend = tmp, strict = T, clip = F, val = T)
 matchFracUntil = sampler(100,matched$matches,fracTimeUntil,welltr, matchType = 'A')
+
+wellBMI = welltr[!is.na(welltr$v005_Bd_Ms_Indx_num),]
