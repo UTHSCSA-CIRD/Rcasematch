@@ -99,3 +99,18 @@ fracTimeUntil = x = byunby(fractr, fractr[ , "patient_num"], FUN = findrange, fs
 matchFracUntil = sampler(100,matched$matches,fracTimeUntil,welltr, matchType = 'A')
 
 wellBMI = welltr[!is.na(welltr$v005_Bd_Ms_Indx_num),]
+
+
+##########################################
+######   Begin Analysis Code #############
+##########################################
+
+#find the variable inflation value of independant variables
+#Pull usable data
+matchFFnum =  matchFirstFrac[,subset(frdict,role =='numeric')$name]
+
+vif(matchFFnum)
+#vif shows no significant inflation between unexpected variables. (expected BMI, Height, Weight, zBMI)
+analyze.Heat(matchFFnum)
+analyze.Constellation(matchFFnum)
+analyze.Pairwise(matchFFnum)
