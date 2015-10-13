@@ -115,3 +115,8 @@ vif(matchFFnum)
 analyze.Heat(matchFFnum)
 analyze.Constellation(matchFFnum)
 analyze.Pairwise(matchFFnum)
+#reduce problem: 
+matchFFFin = matchFirstFrac[, c("zbmi_tr_num", "v000_Pls_num", "age_at_visit_days", "CaseControl")]
+ls =lm(formula(matchFFFin), matchFFFin  )
+tabler(matchFFFin)
+summary(ls)

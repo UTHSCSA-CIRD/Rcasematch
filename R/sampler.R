@@ -9,12 +9,12 @@ sampler <- function(sampleSize, matchList, case, control, patient="patient_num",
     #A- All included
     #non A- non guaranteed
   #obtain the samples
-  browser();
+
   if(!require(sqldf)){stop('Package sqldf is required for this method to operate. Please install sqldf and try again')}
   if(inclusion =='A'){
     matches = matchList
   }else{
-    sqlstr =paste0("SELECT DISTINCT matchList.* FROM matchList JOIN [case] ON (matchList.", patient, " == [case].", patient, ") JOIN control ON (matchList.ctrl_pn == control.", patient )
+    sqlstr =paste0("SELECT DISTINCT matchList.* FROM matchList JOIN [case] ON (matchList.", patient, " == [case].", patient, ") JOIN control ON (matchList.ctrl_pn == control.", patient, ")")
     groups = 1
     while(groups <= length(grouping)){
       paste0(sqlstr, " AND (control.", groups, "== matchList.", groups, ")")
