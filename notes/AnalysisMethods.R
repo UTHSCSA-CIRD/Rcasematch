@@ -3,19 +3,14 @@ library(spdep)
 library(reshape)
 library(fmsb)
 library(psy)
+library(MASS)
 
-plotlgb2toScatter<- function(var1, var2, title,labels = c("X Axis", "Y Axis"), sub = ""){
+plottoScatter<- function(var1, var2, title = "", sub = "",pch = 16, col="#00000080"){
   #plots two variables in a scatter plot- log transforms the varaibles first.
-  lgVar1 = log(var1)
-  lgVar2 = log(var2)
-  #clean up infinities - convert to 0
-  lgVar1 = replace(lgVar1, lgVar1 == -Inf, 0)
-  lgVar2 = replace(lgVar2, lgVar2 == -Inf, 0)
-  plot(lgVar1, lgVar2, main = title, sub = sub, xlab = labels[1], ylab = labels[2])
-  abline(lm(lgVar2 ~ lgVar1), col = "violet")
-  lines(lowess(lgVar1, lgVar2), col = "skyblue")
-  data.frame(cor(lgVar1, lgVar2),  cov(lgVar1, lgVar2))
+  plot(var1~ var2, main = title, sub = sub, pch = 16, col="#00000080")
+  abline(lm(var1 ~ var2), col = "violet")
 }
+
 
 lmCE <- function(var1, varOn, logTransform = T){
   if(logTransform){
@@ -101,6 +96,7 @@ tabler = function(inframe){
   #' This takes a dataframe of values and prints out their names
   #' N, mean, sd and range in different collumns. 
   a = matrix(ncol = 5, nrow = ncol(inframe))
+  colnames(a) = c("Data", "N", "Mean", "SD", "Range")
   i = 1
   for(var in names(inframe)){
     a[i,1] = var
@@ -112,17 +108,18 @@ tabler = function(inframe){
   }
   a
 }
-analyze.Heat <- function(frame, ...){
+analyze.Heat <- function(frame, symm = T,...){
   #accepts a dataframe, converts it into a data matrix and prints it in a heat map
   dbcor <- cor(data.matrix(frame), use='pairwise')
   heatmap(dbcor,symm=T)
 }
-analyze.Constellation <- function(frame, ...){
+analyze.Constellation <- function(frame,nbsphere = 1, v=200, ...){
   dbnum <- frame
   dbnum[is.na(dbnum)]<-0
-  sphpca(data.matrix(dbnum),nbsphere=1,v=200)
+  sphpca(data.frame(data.matrix(dbnum)),nbsphere=1,v=200)
 }
-analyze.Pairwise<- function(frame, ...){
+
+analyze.Pairwise<- function(frame, pch= 16, cex = .3,...){
   plot(frame, pch=16, cex=.3, col="#00000010")
 }
 

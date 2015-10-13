@@ -108,7 +108,8 @@ wellBMI = welltr[!is.na(welltr$v005_Bd_Ms_Indx_num),]
 #find the variable inflation value of independant variables
 #Pull usable data
 matchFFnum =  matchFirstFrac[,subset(frdict,role =='numeric')$name]
-
+x = tabler(matchFFnum) #produces N, Mean, SD, and Range
+View(x)
 vif(matchFFnum)
 #vif shows no significant inflation between unexpected variables. (expected BMI, Height, Weight, zBMI)
 analyze.Heat(matchFFnum)
