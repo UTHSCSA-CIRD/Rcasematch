@@ -174,7 +174,6 @@ rangeAfter <- function(xx, fstart, change, rangeColumn, compare = '<=', requireV
   
   # TODO (Add in a second parameter. E.G. BMI change within 60 days of fend.)
   
-  
   #Range After utilizes the "findrange" function and then allows the user to search for visits X days after
   #e.g. search for all visits within 60 days of the last bone fracture visit. 
   #change - a numeric/integer value that indicates the number of days after the last event in the returned dataframe has occured.
@@ -197,20 +196,21 @@ rangeAfter <- function(xx, fstart, change, rangeColumn, compare = '<=', requireV
   #Checking Compare (we return if compare is invalid)
   if(class(xx[ ,rangeColumn]) == "numeric" | class(xx[ ,rangeColumn]) == "Date"){
     if(!(compare == "<" | compare == "<=" | compare == "==" | compare == ">=" | compare == ">")){
-      print("Invalid compare. Compare must be =, <, <=, ==, >=, >, or !=")
-      return(NULL)
+      stop("Invalid compare. Compare must be =, <, <=, ==, >=, >, or !=")
+
     }
   }else{
     tryCatch({
       xx[ ,rangeColumn] <- as.Date(xx[,rangeColumn])
     }, error = function(e) 
-    {print("rangeColumn non numeric, non date");return(NULL);})
+    {stop("rangeColumn non numeric, non date")})
     
     if(!(compare == "<" | compare == "<=" | compare == "==" | compare == ">=" | compare == ">" | compare == "!=" )){
-      print("Invalid compare. Compare must be =, <, <=, ==, >=, >, or !=")
-      return(NULL)
+      stop("Invalid compare. Compare must be =, <, <=, ==, >=, >, or !=")
     }
   }
+  #using lmfindrange as findrange was not translating fstart and fend.
+  #find the initial range via findrange
   sub1 = lmfindrange(xx, fstart, fend, trail=0, val = F)
   if(is.null(sub1))return(NULL)
   
@@ -218,8 +218,11 @@ rangeAfter <- function(xx, fstart, change, rangeColumn, compare = '<=', requireV
   if(sub1[length(sub1)] == nrow(xx)){
     sub2 = NULL
   }else{
+    #if we're not on the last visit... 
     sub2 = xx[(sub1[length(sub1)]+1):nrow(xx),]
+    #get the value we are going to compare
     original = xx[sub1[length(sub1)], rangeColumn]
+    #build the new fstart and fend
     if(class(original) == "numeric"){
       newStart = paste(rangeColumn, compare,  (original + change))
       newEnd = paste("!(", rangeColumn, compare, (original + change), ")")
@@ -233,13 +236,15 @@ rangeAfter <- function(xx, fstart, change, rangeColumn, compare = '<=', requireV
         return(NULL)
       }
     }
+    #run findrange with the rangeAfter start and end, clip is T. 
     sub2 = lmfindrange(sub2, newStart, newEnd, 0, 0, 1, 1, F, F, clip = T)
-    
-    #clip the newEnd value if exists. 
+    #If we found the rangeAfter, shift the indicies. 
     if(!is.null(sub2)){
       sub2 = sub2 + sub1[length(sub1)]
     }
   }
+  #if there is no rangeAfter/we didn't find it, check if the visit is required. If required
+  #return null, otherwise return the initial findrange results
   if(is.null(sub2)){
     if(requireVisit){
       return(NULL)
@@ -251,12 +256,14 @@ rangeAfter <- function(xx, fstart, change, rangeColumn, compare = '<=', requireV
       }
     }
   }
+  #combine sub1 and sub2 indicies, either continuously or seperately
   indicies = NULL
   if(continuous){
     indicies = c(sub1[1] : sub2[length(sub2)])
   }else{
     indicies = c(sub1, sub2)
   }
+  #return either the value (val = T) or the indicies. 
   if(val){
     return (xx[indicies,])
   }else{
@@ -281,23 +288,25 @@ rangeAfterRecord <- function(xx, change, rangeColumn, compare = '<=', val = T,..
   #Checking Compare (we return if compare is invalid)
   if(class(xx[ ,rangeColumn]) == "numeric" | class(xx[ ,rangeColumn]) == "Date"){
     if(!(compare == "<" | compare == "<=" | compare == "==" | compare == ">=" | compare == ">")){
-      print("Invalid compare. Compare must be =, <, <=, ==, >=, >, or !=")
-      return(NULL)
+      stop("Invalid compare. Compare must be =, <, <=, ==, >=, >, or !=")
     }
   }else{
     tryCatch({
       xx[ ,rangeColumn] <- as.Date(xx[,rangeColumn])
     }, error = function(e) 
-    {print("rangeColumn non numeric, non date");return(NULL);})
+    {stop("rangeColumn non numeric, non date")})
     
     if(!(compare == "<" | compare == "<=" | compare == "==" | compare == ">=" | compare == ">" | compare == "!=" )){
-      print("Invalid compare. Compare must be =, <, <=, ==, >=, >, or !=")
-      return(NULL)
+      stop("Invalid compare. Compare must be =, <, <=, ==, >=, >, or !=")
+
     }
   }
-  
+  #no initial find range since this is searching all records to see if one of them matches the range after criteria
+  #Step through the rows (xx is being subsetted)
   while(nrow(xx) > 1){
+    #pull "original" value that we will compare to
     original = xx[1, rangeColumn]
+    #setup fstart and fend
     if(class(original) == "numeric"){
       newStart = paste(rangeColumn, compare,  (original + change))
       newEnd = paste("!(", rangeColumn, compare, (original + change), ")")
@@ -307,15 +316,17 @@ rangeAfterRecord <- function(xx, change, rangeColumn, compare = '<=', val = T,..
         newStart = paste0(rangeColumn, compare,  "as.Date('", (original + change), "')")
         newEnd = paste0("!(", rangeColumn, compare, "as.Date('",(original + change), "'))")
       }else{
-        warning("Invalid range column type")
-        return(NULL)
+        stop("Invalid range column type")
       }
     }
+    #run findrange, clip= T on the range after
     ret = lmfindrange(xx[2:nrow(xx),], newStart, newEnd, 0, 0, 1, 1, F, F, clip = T)
+    #if we did not find a valid visit, return F
     if(is.null(ret)){
-      #clip one, repeat the while which will analyze off the new first indicie. 
+      #clip one, repeat the while which will analyze off the new first index. 
       xx = xx[2:nrow(xx),]
     }else{
+      #return either the value or the indicies. 
       if(val){
         return (xx[1:(ret[length(ret)]+1),])
       }else{
