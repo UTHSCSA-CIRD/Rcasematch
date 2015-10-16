@@ -17,7 +17,7 @@ metavars <- c('start_date','birth_date');
 
 ## Transformations to do on ALL data.frames in this project
 datatrans <- alist(
-  age_tr_fac = cut(age_at_visit_days,c(0,730,2190,4380,6570,7665,17885,Inf),labels=c('0-2','2-6','6-12','12-18','18-21','21-49','49+')),
+  age_tr_fac = cut(age_at_visit_days,c(0,1095,2190,3285,4380,5475,6570,7665,17885,Inf),labels=c('0-3','3-6','6-9','9-12','12-15','15-18','18-21','21-49','49+')),
   start_date = as.Date(start_date),
   birth_date = as.Date(birth_date),
   numvis_tr_num = ave(age_at_visit_days,patient_num,FUN=length),
@@ -88,7 +88,7 @@ firstfrac = byunby(fractr, fractr[ , "patient_num"], FUN = findrange, fstart = t
 
 matched = matcher(firstfrac,welltr,c("sex_cd", "age_tr_fac"))
 matchFirstFrac = sampler(100,matched$matches,firstfrac,welltr)
-
+count(matchFirstFrac, c("CaseControl","age_tr_fac"))
 
 followupFrac = byunby(fractr, fractr[ , "patient_num"], FUN = rangeAfter, fstart = "fracsprain_tr_fac == 'TRUE'", 60, "age_at_visit_days", fend = T, clip = F, requireVisit = T)
 followupWell = byunby(welltr, welltr[ , c("patient_num","age_tr_fac")], FUN = rangeAfterRecord, 60, "age_at_visit_days")
@@ -107,6 +107,7 @@ wellBMI = welltr[!is.na(welltr$v005_Bd_Ms_Indx_num),]
 
 #find the variable inflation value of independant variables
 #Pull usable data
+frdict$name <- rownames(frdict)
 matchFFnum =  matchFirstFrac[,subset(frdict,role =='numeric')$name]
 x = tabler(matchFFnum) #produces N, Mean, SD, and Range
 View(x)
@@ -117,6 +118,15 @@ analyze.Constellation(matchFFnum)
 analyze.Pairwise(matchFFnum)
 #reduce problem: 
 matchFFFin = matchFirstFrac[, c("zbmi_tr_num", "v000_Pls_num", "age_at_visit_days", "CaseControl")]
-ls =lm(formula(matchFFFin), matchFFFin  )
-tabler(matchFFFin)
+ls =lm(formula(matchFFFin), matchFFFin)
 summary(ls)
+plot(ls)
+
+matchFUnum =  matchFollowup[,subset(frdict,role =='numeric')$name]
+x = tabler(matchFUnum)
+
+matchFUnum$patient_num = matchFollowup$patient_num
+matchFUnum$CaseControl = matchFollowup$CaseControl
+
+matchFUnum = byunby(matchFUnum, matchFUnum[ , "patient_num"], FUN = timeLapse, "age_at_visit_days")
+ggplot(matchFUnum) + geom_line(aes(Lapse, zbmi_tr_num, group = patient_num, color = CaseControl))

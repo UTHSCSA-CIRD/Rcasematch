@@ -73,7 +73,7 @@ findrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,st
     # if end == 2, we stop before the second result, so outcome same as above
   }else {
     end = end + start - 1
-    if(clip && eval(fend, xx[end,])){end = end - 1}
+    if(clip && eval(fend, xx[end,]) && end != start){end = end - 1}
   }
   
   

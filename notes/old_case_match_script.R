@@ -170,7 +170,7 @@
 #   # TODO: check for val argument, check for vectorness
 # }
 
-rangeAfter <- function(xx, fstart, change, rangeColumn, compare = '<=', requireVisit = F, continuous = T, fend = NULL, val = T,... ){
+rangeAfter <- function(xx, fstart, change, rangeColumn, compare = '<=', requireVisit = F, continuous = T, fend = NULL, val = T, clip = F... ){
   
   # TODO (Add in a second parameter. E.G. BMI change within 60 days of fend.)
   
@@ -209,9 +209,10 @@ rangeAfter <- function(xx, fstart, change, rangeColumn, compare = '<=', requireV
       stop("Invalid compare. Compare must be =, <, <=, ==, >=, >, or !=")
     }
   }
+
   #using lmfindrange as findrange was not translating fstart and fend.
   #find the initial range via findrange
-  sub1 = lmfindrange(xx, fstart, fend, trail=0, val = F)
+  sub1 = lmfindrange(xx, fstart, fend, trail=0,lead=0, val = F, clip=clip)
   if(is.null(sub1))return(NULL)
   
   #Check if we are on the last visit for patient X. 
@@ -402,7 +403,7 @@ lmfindrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,
     # if end == 2, we stop before the second result, so outcome same as above
   }else {
     end = end + start - 1
-    if(clip && eval(fend, xx[end,])){end = end - 1}
+    if(clip && eval(fend, xx[end,]) && end != start){end = end - 1}
   }
   
   
@@ -484,3 +485,15 @@ lmfindrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,
 #   #sample$injury<-apply(sample,1,function(xx) {any(xx[c(8,10,12)]!="")})
 #   invisible(sample)
 # }
+timeLapse <- function(xx, lapseCol){
+  #this method utilizes byundby- each patient is passed to this method
+  #this method will walk through the followup visits and enter the time laps 
+  index <- 1
+
+  original <- xx[index, lapseCol]
+  while(index <= nrow(xx)){
+    xx[index, "Lapse"] <- (xx[index,lapseCol] - original)
+    index = index + 1
+  }
+  return (xx)
+}
