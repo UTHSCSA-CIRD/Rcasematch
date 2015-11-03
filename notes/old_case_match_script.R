@@ -485,14 +485,38 @@ lmfindrange <- function(xx,fstart,fend,lead=0,trail=0,nthstart=1,nthend=1,val=F,
 #   #sample$injury<-apply(sample,1,function(xx) {any(xx[c(8,10,12)]!="")})
 #   invisible(sample)
 # }
-timeLapse <- function(xx, lapseCol){
+timeLapse <- function(xx, lapseCol = "age_at_visit_days", type = 'L', eventCol = ""){
   #this method utilizes byundby- each patient is passed to this method
   #this method will walk through the followup visits and enter the time laps 
+  #type - 'L'- time lapse 'S' - start stop event(For time series- start is 0 OR the previous column's stop, stop is lapseCol)
+     # eventCol is True for event (0 censor) or False (1- noncensor)
   index <- 1
-
-  original <- xx[index, lapseCol]
+  if(type == 'L'){
+    original <- xx[index, lapseCol]
+  }else if(type == 'S'){
+    if(eventCol == ""){
+      stop("eventCol must be provided for start stop event lapses.")
+    }
+    original = 0;
+  }else{
+    stop("Invalid type. Type may be 'L' - single column time lapse from first visit or 'S'- dual column start stop." )
+  }
+  
   while(index <= nrow(xx)){
-    xx[index, "Lapse"] <- (xx[index,lapseCol] - original)
+    if(type == 'L'){
+      xx[index, "Lapse"] <- (xx[index,lapseCol] - original)
+    }else{
+      xx[index, "tstart"] <- original
+      original <- xx[index, lapseCol]
+      xx[index, "tend"] <- original
+
+      if(xx[index, eventCol] == T){
+        xx[index, "event"] = 0
+      }else{
+        xx[index, "event"] = 1
+      }
+    }
+    
     index = index + 1
   }
   return (xx)

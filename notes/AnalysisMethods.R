@@ -1,6 +1,6 @@
 library(ggplot2)
-library(spdep)
-library(reshape)
+library(sqldf)
+library(reshape2)
 library(fmsb)
 library(psy)
 library(MASS)
