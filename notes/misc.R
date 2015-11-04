@@ -3,6 +3,7 @@ library(AGD);
 library(Rcasematch)
 library(sqldf)
 library(survival)
+library(plyr)
 ## File locations (change to correct local paths)
 fracfile <- 'manuells_fracV2.2.csv';
 wellfile <- 'manuells_WellVisitV2.2.csv';
@@ -157,8 +158,18 @@ ggplot(matchFracUntil) + geom_line(aes(Lapse, zbmi_tr_num, group = patient_num, 
 ggplot(matchFracUntil) + geom_line(aes(age_at_visit_days, zbmi_tr_num, group = patient_num, color = CaseControl))
 
 timeBase = getTimeSeriesBases(rbind(fractr, welltr), matchFracUntil$patient_num)
+#a note about tmerge- start the initial timeline with ONLY the basic "range" either 0-event/last visit +1 or 
+ # 
+
+## testing first visit through last +1
+tmp = byunby(matchFracUntil, matchFracUntil[ , "patient_num"], FUN = tmpTimeLapse, type = 'S')
+newd = tmerge(data1 = timeBase, data2 = tmp, id=patient_num, tstart = tstart, tstop = tend, options = list(id = "patient_num"))
+newd2 = tmerge(newd, timeline, id = patient_num, fract = event(tstop-.5, event))
+newd3 <- with(subset(matchFracUntil, !is.na(matchFracUntil$v000_Pls_num)), tmerge(newd2, id=patient_num, pulse = tdc(age_at_visit_days, v000_Pls_num)))
+##
+
 tmp = byunby(matchFracUntil, matchFracUntil[ , "patient_num"], FUN = timeLapse, type = 'S', eventCol = "fracsprain_tr_fac")
 timeline = data.frame(patient_num = tmp$patient_num, tstart = tmp$tstart, tstop = tmp$tend, event = tmp$event)
-newd = tmerge(data1 = timeBase, data2 = timeline, id=patient_num, tstart = tstart, tstop = tstop)
-newd2 = tmerge(newd, timeline, id = patient_num, fract = event(event))
+newd = tmerge(data1 = timeBase, data2 = tmp, id=patient_num, tstart = tstart, tstop = tend, options = list(id = "patient_num"))
+newd2 = tmerge(newd, timeline, id = patient_num, fract = event(tstop, event))
 attr(newd2, "tcount")

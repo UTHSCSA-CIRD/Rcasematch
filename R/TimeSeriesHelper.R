@@ -49,3 +49,9 @@ createTimeSeriesBase <- function(xx, ptIdent = "patient_num", vars = c("sex_cd",
   }
   ret
 }
+
+tmpTimeLapse <- function(xx, lapseCol = "age_at_visit_days", type = 'L', eventCol = ""){
+  newd = data.frame(patient_num = xx[1,"patient_num"], tstart =0, tend = (xx[nrow(xx), lapseCol])+1 )
+  return(newd)
+ 
+}
