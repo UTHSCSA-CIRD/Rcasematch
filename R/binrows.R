@@ -1,4 +1,4 @@
-binrows <- function(rows,cols,maxcombos=40000,...){
+binrows <- function(rows,cols,maxcombos=4000,...){
   # rows :      vector of unique values that index rows
   # cols :      vector of unique values that index columns
   # maxcombos : largest number of pairwise combinations 

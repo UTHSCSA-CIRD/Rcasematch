@@ -38,7 +38,7 @@ pdist <- function(xx,yy,result="pdist_out",env=.GlobalEnv,method='binary',prog=T
     # number of levels in that factor). When you take a summary of a
     # factor you get the number of occurrences for each level, with
     # 0s for the levels that do not occur. This input is compatible
-    # with dist (if made into a matrix)
+    # with dist (if made into a matrix, by rbind())
     iisumm <- summary(env[[xx]][ii==env[[xx]][,1],2]);
     for(jj in idyy) {
       if(ii==jj) next;
@@ -52,3 +52,23 @@ pdist <- function(xx,yy,result="pdist_out",env=.GlobalEnv,method='binary',prog=T
   if(prog) close(pbar);
   print(paste("Pairwise distances saved to ",result));
 }
+
+# This function can be used with binrows() as follows...
+# Let's say you have a bunch of IDs and codes from a pool of potential 
+# controls called controldat, and another data.frame expdat in the same 
+# format with your experimental cohort. Let's say there are 100 unique 
+# IDs in expdat and 200 unique IDs in controldat. You want to run the 
+# distance calculations in chunks less than or equal to 4000 results 
+# each. 100*200 = 20000 > 4000. So, you send both ID vectors to binrows()
+#   expbins <- binrows(expdat[,1],controldat[,1],4000);
+#   sapply(expbins,length);
+#
+# Each of the vectors in the expbins list has a length of 20 or less. If
+# these are row-sets of the original 100*200 matrix, each is now <= 20*200
+# = 4000 in size. Now you can do something like... 
+#
+#  for(ii in seq_along(expbins)){
+#     expchunk<-expdat[expdat[,1]%in%expbins[[ii]],];
+#     result<-paste0("res_",ii);
+#    pdist("expchunk","controldat",result);
+#   }
