@@ -14,3 +14,4 @@ vignettes/*.pdf
 .Rbuildignore
 Rcasematch.Rproj
 *.png
+*.png
