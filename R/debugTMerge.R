@@ -1,6 +1,6 @@
 # Automatically generated from all.nw using noweb
 debugtmerge <- function(data1, data2, id, ..., tstart, tstop, options) {
-
+  browser()
   Call <- match.call()
   # The function wants to recognize special keywords in the
   #  arguments, so define a set of functions which will be used to
