@@ -10,8 +10,11 @@ vignettes/*.html
 vignettes/*.pdf
 .Rproj.user
 *.csv
+*.txt
 .RData
 .Rbuildignore
-Rcasematch.Rproj
 *.png
-*.png
+*.rdata
+*.dat
+*.Rproj
+
