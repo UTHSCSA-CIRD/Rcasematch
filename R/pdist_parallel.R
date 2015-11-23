@@ -2,7 +2,7 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 100, res
   if(!require(doParallel)){stop("The doParallel package required.")}
   if(!require(iterators)){stop("The iterator package is required.")}
   if(is.null(yy)){
-    .identpara(xx, cores,memMaxMB, result, env, method)
+    .identpara(xx, cores,memMaxMB,fileMaxGB, result, env, method)
   }else{
     lidxx<-length(idxx <- unique(xx[,1]));
     lidyy<-length(idyy <- unique(yy[,1]));
@@ -12,9 +12,9 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 100, res
     #max mem, cut in half, expanded to KB, divided by 4 
     if(memMaxMB < ((lidxxyy*3*8)/2^20)){
       warning("Memory usage calculated to be greater than max.")
-      .highMem(xx,yy,memMaxMB,result,env,method)
-      invisible()
-    }
+      .highMem(xx,yy,cores,memMaxMB, result,env,method)
+
+    }else{
     cl = makeCluster(cores)
     registerDoParallel(cl)
 
@@ -39,7 +39,8 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 100, res
     }
     stopCluster(cl)
     env[[result]]  = env[[result]][env[[result]][,1]!=0,]
-    gc()
+
+    }#end not too big for memory
   }#end not identical
 }
 
@@ -56,9 +57,9 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 100, res
   #max mem, cut in half, expanded to KB, divided by 4 
   if(memMaxMB < ((lidxxyy*3*8)/2^20)){
     warning("Memory usage calculated to be greater than max.")
-    .highMemIdent(xx,memMaxMB,result,env,method)
-    invisible()
-  }
+    .highMemIdent(xx,cores,memMaxMB,result,env,method)
+
+  }else{
   
   cl = makeCluster(cores)
   registerDoParallel(cl)
@@ -70,8 +71,8 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 100, res
     jj = ii+1
     kk = 1
     
-    res = matrix(0,nrow=(lidxx-jj),ncol=3,dimnames=list(c(),c('p1','p2','dist')));
-    while (jj < lidxx){
+    res = matrix(0,nrow=(lidxx-ii),ncol=3,dimnames=list(c(),c('p1','p2','dist')));
+    while (jj <= lidxx){
       res[kk,] <- c(idxx[ii], idxx[jj], dist(rbind(x[[ii]], x[[jj]]), method=method));
       jj = jj+1
       kk=kk+1
@@ -79,7 +80,8 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 100, res
     res
   }
   stopCluster(cl)
-  gc()
+
+  }#end not too big for memory. 
 }
 
 
@@ -94,8 +96,8 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 100, res
 .highMemIdent = function(xx,cores = 4,memMaxMB = 2024, result="pdist_out",env=.GlobalEnv,method='binary',...){
   if(!require(ffbase))stop("ffbase package required for 'too large for memory' data sets")
   if(!require(ff))stop("ff package required for 'too large for memory' data sets")
-  
   lidxx<-length(idxx <- unique(xx[,1]));
+  lidxxyy = .5*(lidxx-1)*lidxx
   
   #estimate how many runs we can store before reaching memMaxMB and needing to add it to the file.
   #848- size of summary -- summary is cached for each record in xx
@@ -106,7 +108,6 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 100, res
     stop("Cannot fit one length of xx in memMax.")
   }
   
-  
   cl = makeCluster(cores)
   registerDoParallel(cl)
   x <- foreach(jj = 1:lidxx) %dopar%{
@@ -115,41 +116,37 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 100, res
   
   #setup data split and ffdf
   itter <- 1
-  itterTo = itter+stoSize
-  
-  
+  itterTo = stoSize
+  placeHolder = 1
+  pt1 = ff(vmode="integer",length =lidxxyy,filename = paste("pt1", format(Sys.time(),"%Y-%b-%d--%H-%M")), finonexit = F)
+  pt2 = ff(vmode="integer",length =lidxxyy, filename = paste("pt2", format(Sys.time(),"%Y-%b-%d--%H-%M")), finonexit = F)
+  ptdist = ff(vmode="double",length =lidxxyy, filename = paste("ptdist", format(Sys.time(),"%Y-%b-%d--%H-%M")), finonexit = F)
+  ptdf = ffdf(pt1 = pt1,pt2 = pt2,ptdist = ptdist)
   #split 
-  while(itter<=lidxx){
+  while(itter<lidxx){
     ret = NULL
-    ret<- foreach(ii =itter:itterTo, .combine = 'rbind') %dopar%{
+    ret<- foreach(ii=itter:itterTo, .combine = 'rbind') %dopar%{
       jj = ii+1
       kk = 1
       
-      res = matrix(0,nrow=(lidxx-jj),ncol=3,dimnames=list(c(),c('p1','p2','dist')));
-      while (jj < lidxx){
+      res = matrix(0,nrow=(lidxx-ii),ncol=3,dimnames=list(c(),c('p1','p2','dist')));
+      while (jj <= lidxx){
         res[kk,] <- c(idxx[ii], idxx[jj], dist(rbind(x[[ii]], x[[jj]]), method=method));
         jj = jj+1
         kk=kk+1
       }
       res
     }
-    if(itter==1){
-      #init the files 
-      pt1 = ff(ret[,1],filename = paste("pt1", format(Sys.time(),"%Y-%b-%d-%H:%M")))
-      pt2 = ff(ret[,2], filename = paste("pt2", format(Sys.time(),"%Y-%b-%d-%H:%M")))
-      ptdist = ff(ret[,3], filename = paste("ptdist", format(Sys.time(),"%Y-%b-%d-%H:%M")))
-      ptdf = ffdf(pt1,pt2,ptdist)
-    }else{
-      ffappend(ptdf, ret)
-    }
+    ptdf[placeHolder:(placeHolder+nrow(ret)-1),] = as.data.frame(ret)
+    placeHolder = placeHolder+nrow(ret)
 
     itter = itterTo+1
     itterTo = itter +stoSize
-    if(itterTo>lidxx) itterTo = lidxx
+    if(itterTo>lidxx) itterTo = lidxx-1
   }
   stopCluster(cl)
-  env[[result]]  = ptdf
-  gc()
+  env[[result]] = ptdf
+
 }
 
 .highMem = function(xx, yy,cores = 4,memMaxMB = 2024, result="pdist_out", env =.GlobalEnv,method='binary',...){
@@ -177,9 +174,12 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 100, res
   
   #setup data split and ffdf
   itter <- 1
-  itterTo = itter+stoSize
-  
-  
+  itterTo = stoSize
+  placeHolder = 1
+  pt1 = ff(vmode="integer",length =lidxxyy,filename = paste("pt1", format(Sys.time(),"%Y-%b-%d--%H-%M")), finonexit = F)
+  pt2 = ff(vmode="integer",length =lidxxyy, filename = paste("pt2", format(Sys.time(),"%Y-%b-%d--%H-%M")), finonexit = F)
+  ptdist = ff(vmode="double",length =lidxxyy, filename = paste("ptdist", format(Sys.time(),"%Y-%b-%d--%H-%M")), finonexit = F)
+  ptdf = ffdf(pt1 = pt1,pt2 = pt2,ptdist = ptdist)
   #split 
   while(itter<=lidxx){
     ret = NULL
@@ -198,16 +198,8 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 100, res
       }
       res[res[,1]!=0,]
     }
-    if(itter==1){
-      #init the files 
-      pt1 = ff(ret[,1],filename = paste("pt1", format(Sys.time(),"%Y-%b-%d-%H:%M")))
-      pt2 = ff(ret[,2], filename = paste("pt2", format(Sys.time(),"%Y-%b-%d-%H:%M")))
-      ptdist = ff(ret[,3], filename = paste("ptdist", format(Sys.time(),"%Y-%b-%d-%H:%M")))
-      ptdf = ffdf(pt1,pt2,ptdist)
-    }else{
-      #
-      ffappend(ptdf, ret)
-    }
+    ptdf[placeHolder:(placeHolder+nrow(ret)-1),] = as.data.frame(ret)
+    placeHolder = placeHolder + nrow(ret)
     #itterate
     itter = itterTo+1
     itterTo = itter+stoSize
@@ -215,5 +207,5 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 100, res
   }
   stopCluster(cl)
   env[[result]]  = ptdf
-  gc()
+
 }
