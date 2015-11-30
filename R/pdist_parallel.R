@@ -112,7 +112,7 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 20, meth
   #estimate how many runs we can store before reaching memMaxMB and needing to add it to the file.
   #7000 approx size of summary -- summary is cached for each record in xx
   ###floor((memMax - cost of caching) / cost to store one row)
-  stoSize = floor((memMaxMB-(lidxx*7000)/2^20)/(((lidxx*8)/2^20)))
+  stoSize = floor((memMaxMB-(lidxx*1000)/2^20)/(((lidxx*8)/2^20)))
   if(stoSize<1){
     stop("Cannot fit one length of xx in memMax.")
   }
@@ -149,7 +149,6 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 20, meth
       }
       res
     }
-    browser()
     #fill in ptdf from placeHolder to placeHolder + size of ret - 1 
     ptdist[placeHolder:(placeHolder+length(ret)-1),] = ret
     #increment placeHolder by size of ret
@@ -161,7 +160,7 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 20, meth
     if(itterTo>lidxx) itterTo = lidxx-1
   }
   stopCluster(cl)
-  invisible(ptdf)
+  invisible(ptdist)
 }
 
 .highMem = function(xx, yy,cores = 4,memMaxMB = 2024, method='binary',...){
@@ -174,7 +173,7 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 20, meth
   #estimate how many runs we can store before reaching memMaxMB and needing to add it to the file.
   #7000 approx size of summary -- summary is cached for each record in yy 
   #floor((memMax - cost of caching) / cost to store one row)
-  stoSize = floor((memMaxMB-(lidyy*7000)/2^20)/(((lidyy*8)/2^20)))
+  stoSize = floor((memMaxMB-(lidyy*1000)/2^20)/(((lidyy*8)/2^20)))
   if(stoSize<1){
     stop("Cannot fit one length of yy in memMax.")
   }
@@ -204,16 +203,15 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 20, meth
       #remove zeros produced by xx == yy NOTE- there will be zeros at the end of ptdf. 
       res
     }
-    browser()
     #fill in ptdist
-    ptdist[placeHolder:(placeHolder+nrow(ret)-1)] = ret
+    ptdist[placeHolder:(placeHolder+length(ret)-1)] = ret
     #increment placeHolder
-    placeHolder = placeHolder + nrow(ret)
+    placeHolder = placeHolder + length(ret)
     #increment 
     itter = itterTo+1
     itterTo = itter+stoSize
     if(itterTo>lidxx) itterTo = lidxx
   }
   stopCluster(cl)
-  invisible(ptdf)
+  invisible(ptdist)
 }
