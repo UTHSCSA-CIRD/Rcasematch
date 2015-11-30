@@ -215,3 +215,103 @@ pdistPara <- function(xx,yy=NULL,cores = 4,memMaxMB = 2024, fileMaxGB = 20, meth
   stopCluster(cl)
   invisible(ptdist)
 }
+
+pdistParaBig <- function(xx,cores = 4,memMaxMB = 3072, fileMaxGB = 20,fileSize = 2000000000, method='binary',...){
+  if(!require(doParallel))stop("'doParallel' package required")
+  if(!require(ff))stop("'ff' package required for 'too large for memory' data sets")
+  if(fileSize > .Machine$integer.max -1){stop(paste("ERROR!", fileSize, "is greater than max integer size: ", .Machine$integer.max))}
+  lidxx<-length(idxx <- unique(xx[,1]));
+  lidxxyy = .5*(lidxx-1)*lidxx
+  
+  if(fileMaxGB < (lidxxyy*8)/2^30){stop("Resulting files would exceed file maximum size.")}
+  
+  lid = lidxxyy
+  if(lidxxyy<filesize) {
+    warning("No need for pdistParaBig, file < maxint")
+    pdist = ff(vmode="double",length =lidxxyy, filename = paste0("ptdist",fileC, ".ffdat"), finonexit = F, overwrite = TRUE)
+  }else{
+    pdist = ff(vmode="double",length =fileSize, filename = paste0("ptdist",fileC, ".ffdat"), finonexit = F, overwrite = TRUE)
+    lid = lid-fileSize
+  }
+    
+  fileC = 1 #current file
+    
+  #estimate how many runs we can store before reaching memMaxMB and needing to add it to the file.
+  #7000 approx size of summary -- summary is cached for each record in xx
+  ###floor((memMax - cost of caching) / cost to store one row)
+  stoSize = floor((memMaxMB-(lidxx*7000)/2^20)/(((lidxx*8)/2^20)))
+  if(stoSize<1){
+    stop("Cannot fit one length of xx in memMax.")
+  }
+  
+  #if we can fit more items in memory than we're printing to a single file, reduce.
+  if(stoSize > fileSize){stoSize = fileSize}
+  
+
+  #start up clusters
+  cl = makeCluster(cores)
+  registerDoParallel(cl)
+    
+  #cache
+  x <- foreach(jj = 1:lidxx) %dopar%{
+    summary(xx[idxx[jj]==xx[,1],2])
+  }
+  fileList = NULL
+  
+  fileList[fileC] = ptdist
+ 
+  #setup data split and ffdf
+  itter <- 1 #start
+  itterTo = stoSize #stop
+  placeHolder = 1 #holds place in ptdf
+  #ff -file name is created with the date and time and .ffdat
+  
+  #this can be reopened with open.ffdf(ptdf) instead of having to open each ff. Also makes it easier to write to all 3 files at once.
+  #split 
+  while(itter<lidxx){
+    #refresh ret at the begining of each while loop
+    ret = NULL
+    #run foreach in parallel from start to stop (itter to itterTo)
+    ret<- foreach(ii=itter:itterTo, .combine = 'c') %dopar%{
+      jj = ii+1
+      kk = 1
+      
+      res = vector(mode = "numeric", length = (lidxx-ii))
+      while (jj <= lidxx){
+        res[kk] <- dist(rbind(x[[ii]], x[[jj]]), method=method)
+        jj = jj+1
+        kk=kk+1
+      }
+      res
+    }
+    placeTo = placeHolder+length(ret)-1
+    if(placeTo > fileSize){
+      tmp = fileSize-placeHolder
+      ptdist[placeHolder:fileSize] = ret[1:(tmp-1)]
+      placeTo = placeTo -fileSize
+      fileC = fileC+1
+      if(lid<=fileSize){
+        ptdist = ff(vmode="double",length =lid, filename = paste0("ptdist",fileC, ".ffdat"), finonexit = F, overwrite = TRUE)
+      }else{
+        ptdist = ff(vmode="double",length =fileSize, filename = paste0("ptdist",fileC, ".ffdat"), finonexit = F, overwrite = TRUE)
+        lid = lid-fileSize
+      }
+      
+      fileList[fileC] = ptdist
+      ptdist[1:placeTo] = ret[tmp:length(ret)]
+      placeHolder = length(ret)-tmp
+    }else{
+      #fill in ptdf from placeHolder to placeHolder + size of ret - 1 
+      ptdist[placeHolder:placeTo,] = ret
+      #increment placeHolder by size of ret
+      placeHolder = placeHolder+length(ret)
+    }
+    #increment itter and itterTo
+    itter = itterTo+1
+    itterTo = itter +stoSize
+    #if itterTo is past the end of the list, set it to lidxx-1
+    if(itterTo>lidxx) itterTo = lidxx-1
+    }
+  stopCluster(cl)
+  invisible(fileList)
+}
