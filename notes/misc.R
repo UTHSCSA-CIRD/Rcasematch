@@ -1,8 +1,10 @@
 if(!require(AGD)) install.packages('AGD');
 library(AGD);
 ## File locations (change to correct local paths)
-fracfile <- 'manuells_fracV2.2.csv';
-wellfile <- 'manuells_WellVisitV2.2.csv';
+#fracfile <- 'manuells_fracV2.2.csv';
+#wellfile <- 'manuells_WellVisitV2.2.csv';
+fracfile <- '../from_g_drive//fracture_data.csv';
+wellfile <- '../from_g_drive//wellvisit_data.csv';
 
 
 ## You'll want to edit these column names for each project
@@ -14,9 +16,17 @@ rawvars <- c('v001_FRCTR_LWR_LMB','v003_Sprns_strns_ankl','v004_Sprns_strns_kn',
 metavarsmatch <- ".*(_info|_inactive)";
 metavars <- c('start_date','birth_date');
 
+# variables to analyze
+varsofinterest <- c(groupvars,'sex_cd','language_cd','race_cd','v007_Ethnct','v000_Pls_num','v002_Rsprtn_Rt_num','v006_Dstlc_Prsr_num','v009_Sstlc_Prsr_num','v011_Wght_oz_num','v008_Hght_cm_num','v010_Tmprtr_F_num');
+# transformed variables to analyze
+trvarsofinterest <- c('age_tr_fac','zbmi_tr_num');
+# time variable
+timevar <- 'age_at_visit_days';
+eventvar <- 'fracsprain_tr_fac';
+
 ## Transformations to do on ALL data.frames in this project
 datatrans <- alist(
-  age_tr_fac = cut(age_at_visit_days,c(0,730,2190,4380,6570,7665,17885,Inf),labels=c('0-2','2-6','6-12','12-18','18-21','21-49','49+')),
+  age_tr_fac = cut(timevar,c(0,730,2190,4380,6570,7665,17885,Inf),labels=c('0-2','2-6','6-12','12-18','18-21','21-49','49+')),
   start_date = as.Date(start_date),
   birth_date = as.Date(birth_date),
   numvis_tr_num = ave(age_at_visit_days,patient_num,FUN=length),
@@ -56,6 +66,59 @@ frdict[frdict$name %in% respvars] <- 'response';
 
 follow60 <- byunby(fractr,list(fractr$patient_num),findrange,fstart=fracsprain_tr_fac=='TRUE',fend=age_at_visit_days>(age_at_visit_days[1]+60),val=T);
 untilfrac <- byunby(fractr,list(fractr$patient_num),findrange,fstart=T,fend=c(F,fracsprain_tr_fac=='TRUE'),val=T);
+
+# function to collapse first visit and followup for 'simple' time-to-event
+# (for use within byunby)
+to1event<-function(xx,vars=c(varsofinterest,trvarsofinterest)
+                        ,tvar=timevar,rvar=eventvar
+                        ,trueevent='TRUE'){
+  # xx  : data-frame with multiple visits per subject
+  # vars : vector of strings naming columns of interest
+  # timevar : name of the column containing the time variable (absolute)
+  # respvar : name of the column containing the response variable (event)
+  # trueevent : what the the event needs to equal to be non-censored
+  if(nrow(xx)<1) browser();
+  startage<-min(xx[,tvar]);
+  events<-xx[,rvar]==trueevent;
+  followup<-if(any(events)) c(event=min(xx[events,tvar])-startage,cen=1) else{
+    c(event=max(xx[,tvar])-startage,cen=0);
+  }
+  return(data.frame(c(xx[xx[,tvar]==startage,vars],startage=startage,as.list(followup))));
+}
+# here is how we use it with byunby to create a coxph-ready data frame:
+# (for TSCI5050)
+# foo<-byunby(untilfrac,untilfrac[,'patient_num'],to1event);
+# frethnos<-subset(fractr[,c('patient_num','v007_Ethnct')],v007_Ethnct!='');
+# for(ii in foo$patient_num) 
+#   foo[foo$patient_num==ii,'v007_Ethnct']<-frethnos[frethnos$patient_num==ii,'v007_Ethnct'];
+# levels(foo$v007_Ethnct)<-gsub('\"','',gsub('\\"DEM\\|ETHNICITY:','',levels(foo$v007_Ethnc)));
+# ...and the equivalent for non-fracture patients, using welltr after doing the following...
+# welltr$fracsprain_tr_fac<-'FALSE'
+# goodfoo <- na.omit(subset(foo,event>2));
+# then sample from bar made from welltr as above and rbind
+# and sample with replacement again from combined dataframe
+# goodfoobar<-goodfoobar[sample(1:nrow(goodfoobar),500,rep=T),];
+# obfuscate numeric vars...
+# the ranges on the random perturbations are partly trial and error, partly from this...
+# sapply(goodfoobar[,c('v000_Pls_num','v002_Rsprtn_Rt_num','v006_Dstlc_Prsr_num','v009_Sstlc_Prsr_num','v011_Wght_oz_num','v008_Hght_cm_num','v010_Tmprtr_F_num','zbmi_tr_num','startage','event')],function(xx) {uq<-unique(diff(sort(xx)));min(uq[uq>0])})
+
+# goodfoobar$v000_Pls_num <-goodfoobar$v000_Pls_num+sample(-1:1,nrow(goodfoobar),rep=T);
+# goodfoobar$v002_Rsprtn_Rt_num <-goodfoobar$v002_Rsprtn_Rt_num+sample(-.5:.5,nrow(goodfoobar),rep=T);
+# goodfoobar$v006_Dstlc_Prsr_num <-goodfoobar$v006_Dstlc_Prsr_num+sample(-.5:.5,nrow(goodfoobar),rep=T);
+# goodfoobar$v009_Sstlc_Prsr_num <-goodfoobar$v009_Sstlc_Prsr_num+sample(-1:1,nrow(goodfoobar),rep=T);
+# goodfoobar$v010_Tmprtr_F_num <-goodfoobar$v010_Tmprtr_F_num+sample(-.05:.05,nrow(goodfoobar),rep=T);
+# goodfoobar$event<-goodfoobar$event+sample(-5:5,nrow(goodfoobar),rep=T);
+# goodfoobar$startage<-goodfoobar$startage+sample(-4:4,nrow(goodfoobar),rep=T);
+# where to stop followup?
+# max(subset(goodfoobar,cen==1)$event)
+
+# useful little diagnostic plot for survival
+binsurv<-function(xx,binvar,fn=survfit,event='event',cen='cen',...){
+  xx$bin<-cut(xx[,binvar],c(0,median(xx[,binvar]),Inf));
+  form<-formula(paste0('Surv(',event,',',cen,')~bin'));
+  out<- fn(form,xx); out$call$formula <- eval(form);
+  out;
+}
 
 tmp = quote(v000_FRCTR_LWR_LMB != ""| v001_Sprns_strns_kn != ""| v002_Sprns_strns_ankl != "");
 ntmp = quote(!(v000_FRCTR_LWR_LMB != "" | v001_Sprns_strns_kn != "" | v002_Sprns_strns_ankl !=""))
